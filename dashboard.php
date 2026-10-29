@@ -1,179 +1,18 @@
 <?php
 require __DIR__ . '/storage.php';
+require __DIR__ . '/workouts.php';
+require __DIR__ . '/layout.php';
+
 requireAuth();
 
 $user = currentUser();
-$workouts = readJson(WORKOUTS_FILE);
-$myWorkouts = [];
+handleWorkoutActions((string) $user['email']);
 
-foreach ($workouts as $workout) {
-    if (($workout['user_email'] ?? '') === $user['email']) {
-        $myWorkouts[] = $workout;
-    }
-}
-
-usort($myWorkouts, function ($a, $b) {
-    return strtotime((string) ($b['date'] ?? '1970-01-01')) <=> strtotime((string) ($a['date'] ?? '1970-01-01'));
-});
-
+$myWorkouts = loadUserWorkouts((string) $user['email']);
 $exerciseCatalog = readJson(EXERCISES_FILE);
-$editId = $_GET['edit'] ?? null;
-$editing = null;
-if ($editId) {
-    foreach ($myWorkouts as $item) {
-        if (($item['id'] ?? '') === (string) $editId) {
-            $editing = $item;
-            break;
-        }
-    }
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = $_POST['action'] ?? '';
-
-    if ($action === 'delete_workout') {
-        $deleteId = (string) ($_POST['id'] ?? '');
-        $updated = [];
-
-        foreach ($workouts as $item) {
-            if (($item['id'] ?? '') !== $deleteId || (($item['user_email'] ?? '') !== $user['email'])) {
-                $updated[] = $item;
-            }
-        }
-
-        writeJson(WORKOUTS_FILE, $updated);
-        setFlash('Тренировка удалена.', 'success');
-        header('Location: dashboard.php');
-        exit;
-    }
-
-    if ($action === 'save_workout') {
-        $id = (string) ($_POST['id'] ?? '');
-        $date = trim((string) ($_POST['date'] ?? ''));
-        $notes = trim((string) ($_POST['notes'] ?? ''));
-        $exerciseNames = $_POST['exercise_name'] ?? [];
-        $exerciseSets = $_POST['exercise_sets'] ?? [];
-
-        if ($date === '') {
-            setFlash('Укажите дату тренировки.', 'error');
-            header('Location: dashboard.php');
-            exit;
-        }
-
-        $exercises = [];
-
-        foreach ($exerciseNames as $exerciseIndex => $exerciseName) {
-            $name = trim((string) $exerciseName);
-            if ($name === '') {
-                continue;
-            }
-
-            $sets = [];
-            $rawSets = $exerciseSets[$exerciseIndex] ?? [];
-
-            if (is_array($rawSets)) {
-                foreach ($rawSets as $setData) {
-                    $weight = isset($setData['weight']) ? (float) $setData['weight'] : 0;
-                    $reps = isset($setData['reps']) ? (int) $setData['reps'] : 0;
-
-                    if ($weight === 0 && $reps === 0) {
-                        continue;
-                    }
-
-                    $sets[] = ['weight' => $weight, 'reps' => $reps];
-                }
-            }
-
-            if (empty($sets)) {
-                continue;
-            }
-
-            $exercises[] = [
-                'id' => uniqid('exercise_', true),
-                'name' => $name,
-                'sets' => $sets,
-            ];
-        }
-
-        if (empty($exercises)) {
-            setFlash('Добавьте хотя бы одно упражнение с подходами.', 'error');
-            header('Location: dashboard.php');
-            exit;
-        }
-
-        $entry = [
-            'id' => $id !== '' ? $id : uniqid('workout_', true),
-            'user_email' => $user['email'],
-            'date' => $date,
-            'notes' => $notes,
-            'exercises' => $exercises,
-            'created_at' => date('Y-m-d H:i:s'),
-        ];
-
-        $updated = [];
-        $found = false;
-
-        foreach ($workouts as $item) {
-            if (($item['id'] ?? '') === $id && (($item['user_email'] ?? '') === $user['email'])) {
-                $updated[] = $entry;
-                $found = true;
-            } else {
-                $updated[] = $item;
-            }
-        }
-
-        if (!$found) {
-            $updated[] = $entry;
-        }
-
-        writeJson(WORKOUTS_FILE, $updated);
-        setFlash($id === '' ? 'Тренировка добавлена.' : 'Тренировка обновлена.', 'success');
-        header('Location: dashboard.php');
-        exit;
-    }
-}
-
+$editId = (string) ($_GET['edit'] ?? '');
+$editing = $editId !== '' ? findWorkout($myWorkouts, $editId) : null;
 $flash = getFlash();
-$summarySets = 0;
-$summaryTotal = count($myWorkouts);
-$avgWeight = 0;
-
-foreach ($myWorkouts as $item) {
-    foreach (($item['exercises'] ?? []) as $exercise) {
-        $summarySets += count((array) ($exercise['sets'] ?? []));
-    }
-}
-
-if ($summaryTotal > 0) {
-    $weights = [];
-    foreach ($myWorkouts as $item) {
-        foreach (($item['exercises'] ?? []) as $exercise) {
-            foreach (($exercise['sets'] ?? []) as $set) {
-                $weights[] = (float) ($set['weight'] ?? 0);
-            }
-        }
-    }
-
-    if (!empty($weights)) {
-        $avgWeight = round(array_sum($weights) / count($weights), 1);
-    }
-}
-
-function pluralRu(int $count, string $one, string $few, string $many): string
-{
-    $n10 = $count % 10;
-    $n100 = $count % 100;
-
-    if ($n10 === 1 && $n100 !== 11) {
-        return $one;
-    }
-
-    if ($n10 >= 2 && $n10 <= 4 && ($n100 < 10 || $n100 >= 20)) {
-        return $few;
-    }
-
-    return $many;
-}
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -181,200 +20,105 @@ function pluralRu(int $count, string $one, string $few, string $many): string
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#f4f7fb" />
-    <title>FitLog — Личный кабинет</title>
+    <title>FitLog — <?php echo $editing ? 'Редактирование тренировки' : 'Новая тренировка'; ?></title>
     <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="dashboard-page">
 <div class="dashboard-layout">
-    <header class="topbar">
-        <div class="brand-mini">
-            <div class="badge">F</div>
-            <span>FitLog</span>
-        </div>
+    <?php renderTopbar($user); ?>
+    <?php renderNav('dashboard'); ?>
+    <?php renderFlash($flash); ?>
 
-        <div class="user-block">
-            <div class="avatar"><?php echo strtoupper(substr($user['name'], 0, 1)); ?></div>
-            <div class="user-meta">
-                <div><strong><?php echo htmlspecialchars($user['name']); ?></strong></div>
-                <small><?php echo htmlspecialchars($user['email']); ?></small>
-            </div>
-            <a href="logout.php" class="logout-link" title="Выйти из аккаунта">Выйти</a>
-        </div>
-    </header>
-
-    <?php if ($flash): ?>
-        <p class="message <?php echo $flash['type'] === 'error' ? 'error' : 'success'; ?>"><?php echo htmlspecialchars($flash['message']); ?></p>
-    <?php endif; ?>
-
-    <div class="dashboard-grid">
+    <main class="page-single">
         <section class="panel">
             <div class="section-header">
-                <h2>Обзор</h2>
+                <h2><?php echo $editing ? 'Редактировать тренировку' : 'Новая тренировка'; ?></h2>
             </div>
 
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <small>Тренировки</small>
-                    <strong><?php echo $summaryTotal; ?></strong>
-                </div>
-                <div class="stat-card">
-                    <small>Подходы</small>
-                    <strong><?php echo $summarySets; ?></strong>
-                </div>
-                <div class="stat-card">
-                    <small>Средний вес</small>
-                    <strong><?php echo $avgWeight; ?> <span class="stat-unit">кг</span></strong>
-                </div>
-            </div>
-
-            <div class="panel panel-inner">
-                <div class="section-header">
-                    <h3><?php echo $editing ? 'Редактировать тренировку' : 'Новая тренировка'; ?></h3>
-                </div>
-
-                <form method="post" action="dashboard.php" class="workout-form" id="workoutForm">
-                    <input type="hidden" name="action" value="save_workout" />
-                    <input type="hidden" name="id" value="<?php echo htmlspecialchars((string) ($editing['id'] ?? '')); ?>" />
-
-                    <div class="field">
-                        <label for="date">Дата</label>
-                        <input id="date" name="date" type="date" value="<?php echo htmlspecialchars((string) ($editing['date'] ?? date('Y-m-d'))); ?>" required />
-                    </div>
-
-                    <div class="exercise-builder" id="exerciseBuilder">
-                        <?php
-                        $exerciseRows = $editing['exercises'] ?? [];
-                        if (empty($exerciseRows)) {
-                            $exerciseRows = [[ 'name' => '', 'sets' => [[ 'weight' => '', 'reps' => '' ]] ]];
-                        }
-
-                        foreach ($exerciseRows as $exerciseIndex => $exercise):
-                            $exerciseName = $exercise['name'] ?? '';
-                            $exerciseSets = $exercise['sets'] ?? [[ 'weight' => '', 'reps' => '' ]];
-                            if (empty($exerciseSets)) {
-                                $exerciseSets = [[ 'weight' => '', 'reps' => '' ]];
-                            }
-                        ?>
-                            <article class="exercise-block" data-index="<?php echo $exerciseIndex; ?>">
-                                <div class="exercise-top">
-                                    <span class="exercise-num"><?php echo $exerciseIndex + 1; ?></span>
-                                    <label class="visually-hidden" for="exercise-name-<?php echo $exerciseIndex; ?>">Упражнение</label>
-                                    <select id="exercise-name-<?php echo $exerciseIndex; ?>" name="exercise_name[<?php echo $exerciseIndex; ?>]" class="exercise-name-select">
-                                        <option value="">Выберите упражнение</option>
-                                        <?php foreach ($exerciseCatalog as $item): ?>
-                                            <option value="<?php echo htmlspecialchars((string) $item); ?>" <?php echo $item === $exerciseName ? 'selected' : ''; ?>><?php echo htmlspecialchars((string) $item); ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <span class="exercise-count"><?php echo count($exerciseSets); ?> <?php echo pluralRu(count($exerciseSets), 'подход', 'подхода', 'подходов'); ?></span>
-                                    <button type="button" class="icon-btn remove-exercise-btn" aria-label="Удалить упражнение">✕</button>
-                                </div>
-
-                                <div class="set-list">
-                                    <?php foreach ($exerciseSets as $setIndex => $set): ?>
-                                        <div class="set-row" data-set-index="<?php echo $setIndex; ?>">
-                                            <span class="set-num"><?php echo $setIndex + 1; ?></span>
-                                            <label class="set-field">
-                                                <span class="visually-hidden">Вес, кг</span>
-                                                <input type="number" step="0.5" inputmode="decimal" placeholder="0" class="set-weight" name="exercise_sets[<?php echo $exerciseIndex; ?>][<?php echo $setIndex; ?>][weight]" value="<?php echo htmlspecialchars((string) ($set['weight'] ?? '')); ?>" />
-                                                <span class="set-unit">кг</span>
-                                            </label>
-                                            <span class="set-times">×</span>
-                                            <label class="set-field">
-                                                <span class="visually-hidden">Повторы</span>
-                                                <input type="number" min="1" inputmode="numeric" placeholder="0" class="set-reps" name="exercise_sets[<?php echo $exerciseIndex; ?>][<?php echo $setIndex; ?>][reps]" value="<?php echo htmlspecialchars((string) ($set['reps'] ?? '')); ?>" />
-                                                <span class="set-unit">раз</span>
-                                            </label>
-                                            <button type="button" class="icon-btn remove-set-btn" aria-label="Удалить подход">✕</button>
-                                        </div>
-                                    <?php endforeach; ?>
-                                </div>
-
-                                <button type="button" class="add-set-btn">+ подход</button>
-                            </article>
-                        <?php endforeach; ?>
-                    </div>
-
-                    <button type="button" id="addExerciseBtn" class="add-exercise-btn">+ Добавить упражнение</button>
-
-                    <details class="notes-details" <?php echo !empty($editing['notes']) ? 'open' : ''; ?>>
-                        <summary>Заметка к тренировке</summary>
-                        <textarea id="notes" name="notes" placeholder="Что важно запомнить после тренировки?"><?php echo htmlspecialchars((string) ($editing['notes'] ?? '')); ?></textarea>
-                    </details>
-
-                    <div class="actions form-actions">
-                        <button type="submit" class="primary-btn"><?php echo $editing ? 'Сохранить изменения' : 'Сохранить тренировку'; ?></button>
-                        <?php if ($editing): ?>
-                            <a href="dashboard.php" class="secondary-btn">Отмена</a>
-                        <?php endif; ?>
-                    </div>
-                </form>
-            </div>
-        </section>
-
-        <aside class="panel">
-            <div class="section-header">
-                <h2>История</h2>
-                <span class="history-count"><?php echo $summaryTotal; ?></span>
-            </div>
-
-            <div class="workout-list">
-                <?php if (empty($myWorkouts)): ?>
-                    <p class="empty-state">Пока нет ни одной тренировки. Добавь первую и начни вести дневник.</p>
+            <p class="page-hint">
+                <?php if ($editing): ?>
+                    Измени упражнения или подходы и сохрани. Дата создания тренировки останется прежней.
                 <?php else: ?>
-                    <?php foreach ($myWorkouts as $item): ?>
-                        <?php
-                        $itemExercises = $item['exercises'] ?? [];
-                        $itemSets = 0;
-                        foreach ($itemExercises as $exercise) {
-                            $itemSets += count((array) ($exercise['sets'] ?? []));
-                        }
-                        $itemTimestamp = strtotime((string) ($item['date'] ?? ''));
-                        $itemDate = $itemTimestamp ? date('d.m.Y', $itemTimestamp) : (string) ($item['date'] ?? '');
-                        ?>
-                        <details class="workout-item">
-                            <summary class="workout-summary">
-                                <span class="workout-date"><?php echo htmlspecialchars($itemDate); ?></span>
-                                <span class="workout-meta"><?php echo count($itemExercises); ?> упр. · <?php echo $itemSets; ?> <?php echo pluralRu($itemSets, 'подход', 'подхода', 'подходов'); ?></span>
-                                <span class="chevron" aria-hidden="true"></span>
-                            </summary>
-
-                            <div class="workout-body">
-                                <?php if (!empty($item['notes'])): ?>
-                                    <p class="workout-notes"><?php echo nl2br(htmlspecialchars((string) $item['notes'])); ?></p>
-                                <?php endif; ?>
-
-                                <div class="exercise-summary">
-                                    <?php foreach ($itemExercises as $exercise): ?>
-                                        <div class="exercise-summary-item">
-                                            <div class="exercise-summary-header">
-                                                <strong><?php echo htmlspecialchars((string) ($exercise['name'] ?? 'Упражнение')); ?></strong>
-                                                <span><?php echo count((array) ($exercise['sets'] ?? [])); ?> подх.</span>
-                                            </div>
-
-                                            <div class="set-summary-list">
-                                                <?php foreach (($exercise['sets'] ?? []) as $set): ?>
-                                                    <span><?php echo (float) ($set['weight'] ?? 0); ?> кг × <?php echo (int) ($set['reps'] ?? 0); ?></span>
-                                                <?php endforeach; ?>
-                                            </div>
-                                        </div>
-                                    <?php endforeach; ?>
-                                </div>
-
-                                <div class="actions">
-                                    <a class="secondary-btn" href="dashboard.php?edit=<?php echo rawurlencode((string) ($item['id'] ?? '')); ?>">Редактировать</a>
-                                    <form method="post" action="dashboard.php" class="inline-form">
-                                        <input type="hidden" name="action" value="delete_workout" />
-                                        <input type="hidden" name="id" value="<?php echo htmlspecialchars((string) ($item['id'] ?? '')); ?>" />
-                                        <button type="submit" class="danger-btn">Удалить</button>
-                                    </form>
-                                </div>
-                            </div>
-                        </details>
-                    <?php endforeach; ?>
+                    Выбери упражнение, укажи вес и повторы. Новый подход добавляется кнопкой «+ подход».
                 <?php endif; ?>
-            </div>
-        </aside>
-    </div>
+            </p>
+
+            <form method="post" action="dashboard.php" class="workout-form" id="workoutForm">
+                <input type="hidden" name="action" value="save_workout" />
+                <input type="hidden" name="id" value="<?php echo htmlspecialchars((string) ($editing['id'] ?? '')); ?>" />
+
+                <div class="field">
+                    <label for="date">Дата</label>
+                    <input id="date" name="date" type="date" value="<?php echo htmlspecialchars((string) ($editing['date'] ?? date('Y-m-d'))); ?>" required />
+                </div>
+
+                <div class="exercise-builder" id="exerciseBuilder">
+                    <?php
+                    $exerciseRows = $editing['exercises'] ?? [];
+                    if (empty($exerciseRows)) {
+                        $exerciseRows = [[ 'name' => '', 'sets' => [[ 'weight' => '', 'reps' => '' ]] ]];
+                    }
+
+                    foreach ($exerciseRows as $exerciseIndex => $exercise):
+                        $exerciseName = $exercise['name'] ?? '';
+                        $exerciseSets = $exercise['sets'] ?? [[ 'weight' => '', 'reps' => '' ]];
+                        if (empty($exerciseSets)) {
+                            $exerciseSets = [[ 'weight' => '', 'reps' => '' ]];
+                        }
+                    ?>
+                        <article class="exercise-block" data-index="<?php echo $exerciseIndex; ?>">
+                            <div class="exercise-top">
+                                <span class="exercise-num"><?php echo $exerciseIndex + 1; ?></span>
+                                <label class="visually-hidden" for="exercise-name-<?php echo $exerciseIndex; ?>">Упражнение</label>
+                                <select id="exercise-name-<?php echo $exerciseIndex; ?>" name="exercise_name[<?php echo $exerciseIndex; ?>]" class="exercise-name-select">
+                                    <option value="">Выберите упражнение</option>
+                                    <?php foreach ($exerciseCatalog as $item): ?>
+                                        <option value="<?php echo htmlspecialchars((string) $item); ?>" <?php echo $item === $exerciseName ? 'selected' : ''; ?>><?php echo htmlspecialchars((string) $item); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <span class="exercise-count"><?php echo count($exerciseSets); ?> <?php echo pluralRu(count($exerciseSets), 'подход', 'подхода', 'подходов'); ?></span>
+                                <button type="button" class="icon-btn remove-exercise-btn" aria-label="Удалить упражнение">✕</button>
+                            </div>
+
+                            <div class="set-list">
+                                <?php foreach ($exerciseSets as $setIndex => $set): ?>
+                                    <div class="set-row" data-set-index="<?php echo $setIndex; ?>">
+                                        <span class="set-num"><?php echo $setIndex + 1; ?></span>
+                                        <label class="set-field">
+                                            <span class="visually-hidden">Вес, кг</span>
+                                            <input type="number" step="0.5" inputmode="decimal" placeholder="0" class="set-weight" name="exercise_sets[<?php echo $exerciseIndex; ?>][<?php echo $setIndex; ?>][weight]" value="<?php echo htmlspecialchars((string) ($set['weight'] ?? '')); ?>" />
+                                            <span class="set-unit">кг</span>
+                                        </label>
+                                        <span class="set-times">×</span>
+                                        <label class="set-field">
+                                            <span class="visually-hidden">Повторы</span>
+                                            <input type="number" min="1" inputmode="numeric" placeholder="0" class="set-reps" name="exercise_sets[<?php echo $exerciseIndex; ?>][<?php echo $setIndex; ?>][reps]" value="<?php echo htmlspecialchars((string) ($set['reps'] ?? '')); ?>" />
+                                            <span class="set-unit">раз</span>
+                                        </label>
+                                        <button type="button" class="icon-btn remove-set-btn" aria-label="Удалить подход">✕</button>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+
+                            <button type="button" class="add-set-btn">+ подход</button>
+                        </article>
+                    <?php endforeach; ?>
+                </div>
+
+                <button type="button" id="addExerciseBtn" class="add-exercise-btn">+ Добавить упражнение</button>
+
+                <details class="notes-details" <?php echo !empty($editing['notes']) ? 'open' : ''; ?>>
+                    <summary>Заметка к тренировке</summary>
+                    <textarea id="notes" name="notes" placeholder="Что важно запомнить после тренировки?"><?php echo htmlspecialchars((string) ($editing['notes'] ?? '')); ?></textarea>
+                </details>
+
+                <div class="actions form-actions">
+                    <button type="submit" class="primary-btn"><?php echo $editing ? 'Сохранить изменения' : 'Сохранить тренировку'; ?></button>
+                    <a href="history.php" class="secondary-btn"><?php echo $editing ? 'Отмена' : 'К истории'; ?></a>
+                </div>
+            </form>
+        </section>
+    </main>
 </div>
 
 <script>

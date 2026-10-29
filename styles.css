@@ -448,6 +448,49 @@ body.dashboard-page {
   white-space: nowrap;
 }
 
+/* --- Меню разделов --- */
+
+.main-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 10px;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.05);
+  border: 1px solid var(--line);
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-link:hover {
+  color: var(--text);
+}
+
+.nav-link.is-active {
+  background: #fff;
+  color: var(--primary);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.nav-icon {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+}
+
 /* --- Сообщения --- */
 
 .message {
@@ -464,7 +507,13 @@ body.dashboard-page {
 
 /* --- Сетка и панели --- */
 
-.dashboard-grid {
+.page-single {
+  width: 100%;
+  max-width: 760px;
+  margin: 12px auto 0;
+}
+
+.history-layout {
   display: grid;
   gap: 12px;
   margin-top: 12px;
@@ -510,6 +559,13 @@ body.dashboard-page {
   color: var(--primary);
   font-size: 0.72rem;
   font-weight: 700;
+}
+
+.page-hint {
+  margin: -2px 0 12px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
 }
 
 /* --- Статистика --- */
@@ -937,11 +993,43 @@ body.dashboard-page {
   transform: rotate(-90deg);
 }
 
+.workout-item.is-highlighted {
+  border-color: rgba(255, 107, 61, 0.45);
+  box-shadow: 0 0 0 3px rgba(255, 107, 61, 0.12);
+}
+
 .workout-body {
   display: grid;
   gap: 10px;
   padding: 10px 12px 12px;
   border-top: 1px solid var(--line);
+}
+
+.workout-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.workout-stats > div {
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.workout-stats small {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.workout-stats strong {
+  font-size: 0.86rem;
+  letter-spacing: -0.01em;
 }
 
 .workout-notes {
@@ -1004,6 +1092,10 @@ body.dashboard-page {
   line-height: 1.45;
 }
 
+.empty-state p {
+  margin: 0 0 10px;
+}
+
 /* --- Очень узкие экраны --- */
 
 @media (max-width: 359px) {
@@ -1031,9 +1123,16 @@ body.dashboard-page {
     font-size: 0.92rem;
   }
 
-  .dashboard-grid {
-    grid-template-columns: 1.1fr 0.9fr;
+  .history-layout {
     gap: 14px;
+  }
+
+  .main-nav {
+    max-width: 420px;
+  }
+
+  .workout-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .topbar {
@@ -1079,6 +1178,22 @@ body.dashboard-page {
 
   .stat-card strong {
     font-size: 1.7rem;
+  }
+
+  .history-layout {
+    grid-template-columns: 300px minmax(0, 1fr);
+    align-items: start;
+    gap: 18px;
+  }
+
+  .stats-panel {
+    position: sticky;
+    top: 20px;
+  }
+
+  .stats-panel .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   .form-actions {
