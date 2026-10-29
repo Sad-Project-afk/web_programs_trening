@@ -3,6 +3,7 @@ session_start();
 
 const USERS_FILE = __DIR__ . '/data/users.json';
 const WORKOUTS_FILE = __DIR__ . '/data/workouts.json';
+const EXERCISES_FILE = __DIR__ . '/data/exercises.json';
 
 function ensureStorage(): void
 {
@@ -10,7 +11,7 @@ function ensureStorage(): void
         mkdir(__DIR__ . '/data', 0777, true);
     }
 
-    foreach ([USERS_FILE, WORKOUTS_FILE] as $path) {
+    foreach ([USERS_FILE, WORKOUTS_FILE, EXERCISES_FILE] as $path) {
         if (!file_exists($path)) {
             file_put_contents($path, "[]");
         }
