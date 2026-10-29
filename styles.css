@@ -1,447 +1,774 @@
-<?php
-require __DIR__ . '/storage.php';
-requireAuth();
-
-$user = currentUser();
-$workouts = readJson(WORKOUTS_FILE);
-$myWorkouts = [];
-
-foreach ($workouts as $workout) {
-    if (($workout['user_email'] ?? '') === $user['email']) {
-        $myWorkouts[] = $workout;
-    }
+:root {
+  --bg: #f4f7fb;
+  --panel: rgba(255, 255, 255, 0.9);
+  --primary: #ff6b3d;
+  --primary-dark: #ea582d;
+  --secondary: #1a1f2b;
+  --text: #1d2333;
+  --muted: #687286;
+  --line: rgba(23, 31, 45, 0.08);
+  --success: #0ea5a4;
+  --error: #d9485f;
+  --shadow: 0 18px 40px rgba(30, 41, 59, 0.12);
 }
 
-usort($myWorkouts, function ($a, $b) {
-    return strtotime((string) ($b['date'] ?? '1970-01-01')) <=> strtotime((string) ($a['date'] ?? '1970-01-01'));
-});
+* { box-sizing: border-box; }
 
-$exerciseCatalog = readJson(EXERCISES_FILE);
-$editId = $_GET['edit'] ?? null;
-$editing = null;
-if ($editId) {
-    foreach ($myWorkouts as $item) {
-        if (($item['id'] ?? '') === (string) $editId) {
-            $editing = $item;
-            break;
-        }
-    }
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  font-family: "Inter", sans-serif;
+  color: var(--text);
+  background: radial-gradient(circle at top left, rgba(255, 123, 84, 0.14), transparent 30%),
+              linear-gradient(135deg, #fdf7f3 0%, #f4f7fb 100%);
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = $_POST['action'] ?? '';
-
-    if ($action === 'delete_workout') {
-        $deleteId = (string) ($_POST['id'] ?? '');
-        $updated = [];
-
-        foreach ($workouts as $item) {
-            if (($item['id'] ?? '') !== $deleteId || (($item['user_email'] ?? '') !== $user['email'])) {
-                $updated[] = $item;
-            }
-        }
-
-        writeJson(WORKOUTS_FILE, $updated);
-        setFlash('Тренировка удалена.', 'success');
-        header('Location: dashboard.php');
-        exit;
-    }
-
-    if ($action === 'save_workout') {
-        $id = (string) ($_POST['id'] ?? '');
-        $date = trim((string) ($_POST['date'] ?? ''));
-        $notes = trim((string) ($_POST['notes'] ?? ''));
-        $exerciseNames = $_POST['exercise_name'] ?? [];
-        $exerciseSets = $_POST['exercise_sets'] ?? [];
-
-        if ($date === '') {
-            setFlash('Укажите дату тренировки.', 'error');
-            header('Location: dashboard.php');
-            exit;
-        }
-
-        $exercises = [];
-
-        foreach ($exerciseNames as $exerciseIndex => $exerciseName) {
-            $name = trim((string) $exerciseName);
-            if ($name === '') {
-                continue;
-            }
-
-            $sets = [];
-            $rawSets = $exerciseSets[$exerciseIndex] ?? [];
-
-            if (is_array($rawSets)) {
-                foreach ($rawSets as $setData) {
-                    $weight = isset($setData['weight']) ? (float) $setData['weight'] : 0;
-                    $reps = isset($setData['reps']) ? (int) $setData['reps'] : 0;
-
-                    if ($weight === 0 && $reps === 0) {
-                        continue;
-                    }
-
-                    $sets[] = ['weight' => $weight, 'reps' => $reps];
-                }
-            }
-
-            if (empty($sets)) {
-                continue;
-            }
-
-            $exercises[] = [
-                'id' => uniqid('exercise_', true),
-                'name' => $name,
-                'sets' => $sets,
-            ];
-        }
-
-        if (empty($exercises)) {
-            setFlash('Добавьте хотя бы одно упражнение с подходами.', 'error');
-            header('Location: dashboard.php');
-            exit;
-        }
-
-        $entry = [
-            'id' => $id !== '' ? $id : uniqid('workout_', true),
-            'user_email' => $user['email'],
-            'date' => $date,
-            'notes' => $notes,
-            'exercises' => $exercises,
-            'created_at' => date('Y-m-d H:i:s'),
-        ];
-
-        $updated = [];
-        $found = false;
-
-        foreach ($workouts as $item) {
-            if (($item['id'] ?? '') === $id && (($item['user_email'] ?? '') === $user['email'])) {
-                $updated[] = $entry;
-                $found = true;
-            } else {
-                $updated[] = $item;
-            }
-        }
-
-        if (!$found) {
-            $updated[] = $entry;
-        }
-
-        writeJson(WORKOUTS_FILE, $updated);
-        setFlash($id === '' ? 'Тренировка добавлена.' : 'Тренировка обновлена.', 'success');
-        header('Location: dashboard.php');
-        exit;
-    }
+body {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
 }
 
-$flash = getFlash();
-$summarySets = 0;
-$summaryTotal = count($myWorkouts);
-$avgWeight = 0;
-
-foreach ($myWorkouts as $item) {
-    foreach (($item['exercises'] ?? []) as $exercise) {
-        $summarySets += count((array) ($exercise['sets'] ?? []));
-    }
+button,
+input,
+textarea {
+  font: inherit;
 }
 
-if ($summaryTotal > 0) {
-    $weights = [];
-    foreach ($myWorkouts as $item) {
-        foreach (($item['exercises'] ?? []) as $exercise) {
-            foreach (($exercise['sets'] ?? []) as $set) {
-                $weights[] = (float) ($set['weight'] ?? 0);
-            }
-        }
-    }
-
-    if (!empty($weights)) {
-        $avgWeight = round(array_sum($weights) / count($weights), 1);
-    }
+.page-shell {
+  width: min(1100px, 100%);
+  min-height: 700px;
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 32px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+  overflow: hidden;
 }
-?>
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FitLog — Личный кабинет</title>
-    <link rel="stylesheet" href="styles.css" />
-</head>
-<body class="dashboard-page">
-<div class="dashboard-layout">
-    <header class="topbar">
-        <div class="brand-mini">
-            <div class="badge">F</div>
-            <span>FitLog</span>
-        </div>
 
-        <div class="user-block">
-            <div class="avatar"><?php echo strtoupper(substr($user['name'], 0, 1)); ?></div>
-            <div class="user-meta">
-                <div><strong><?php echo htmlspecialchars($user['name']); ?></strong></div>
-                <small><?php echo htmlspecialchars($user['email']); ?></small>
-            </div>
-            <a href="logout.php" class="logout-link">Выйти</a>
-        </div>
-    </header>
+.brand-panel {
+  position: relative;
+  padding: 52px 48px;
+  background: linear-gradient(180deg, rgba(16, 24, 40, 0.96), rgba(22, 32, 46, 0.96)),
+              linear-gradient(135deg, #121a2a, #1f2b3d);
+  color: #fff;
+}
 
-    <?php if ($flash): ?>
-        <p class="message <?php echo $flash['type'] === 'error' ? 'error' : 'success'; ?>"><?php echo htmlspecialchars($flash['message']); ?></p>
-    <?php endif; ?>
+.brand-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at bottom right, rgba(255, 120, 83, 0.28), transparent 30%);
+}
 
-    <div class="dashboard-grid">
-        <section class="panel">
-            <div class="section-header">
-                <h2>Обзор</h2>
-            </div>
+.brand-header,
+.brand-copy,
+.feature-list {
+  position: relative;
+  z-index: 1;
+}
 
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <small>Тренировки</small>
-                    <strong><?php echo $summaryTotal; ?></strong>
-                </div>
-                <div class="stat-card">
-                    <small>Подходы</small>
-                    <strong><?php echo $summarySets; ?></strong>
-                </div>
-                <div class="stat-card">
-                    <small>Средний вес</small>
-                    <strong><?php echo $avgWeight; ?> кг</strong>
-                </div>
-            </div>
+.brand-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
 
-            <div class="panel panel-inner">
-                <div class="section-header">
-                    <h3><?php echo $editing ? 'Редактировать тренировку' : 'Добавить тренировку'; ?></h3>
-                </div>
+.brand-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--primary), #ff9a67);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  box-shadow: 0 10px 25px rgba(255, 107, 61, 0.45);
+}
 
-                <form method="post" action="dashboard.php" class="workout-form" id="workoutForm">
-                    <input type="hidden" name="action" value="save_workout" />
-                    <input type="hidden" name="id" value="<?php echo htmlspecialchars((string) ($editing['id'] ?? '')); ?>" />
+.brand-copy { margin-top: 82px; }
 
-                    <div class="field-grid">
-                        <div class="field">
-                            <label for="date">Дата</label>
-                            <input id="date" name="date" type="date" value="<?php echo htmlspecialchars((string) ($editing['date'] ?? date('Y-m-d'))); ?>" required />
-                        </div>
-                    </div>
+.eyebrow {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
 
-                    <div class="field">
-                        <label for="notes">Заметки</label>
-                        <textarea id="notes" name="notes" placeholder="Что важно запомнить после тренировки?"><?php echo htmlspecialchars((string) ($editing['notes'] ?? '')); ?></textarea>
-                    </div>
+.brand-copy h1 {
+  margin-top: 18px;
+  max-width: 470px;
+  font-size: clamp(2.2rem, 4vw, 4rem);
+  line-height: 1.05;
+  letter-spacing: -0.06em;
+}
 
-                    <div class="exercise-builder" id="exerciseBuilder" data-next-index="0">
-                        <?php
-                        $exerciseRows = $editing['exercises'] ?? [];
-                        if (empty($exerciseRows)) {
-                            $exerciseRows = [[ 'name' => '', 'sets' => [[ 'weight' => '', 'reps' => '' ]] ]];
-                        }
+.feature-list {
+  list-style: none;
+  padding: 0;
+  margin: 48px 0 0;
+  display: grid;
+  gap: 18px;
+}
 
-                        foreach ($exerciseRows as $exerciseIndex => $exercise):
-                            $exerciseName = $exercise['name'] ?? '';
-                            $exerciseSets = $exercise['sets'] ?? [[ 'weight' => '', 'reps' => '' ]];
-                            if (empty($exerciseSets)) {
-                                $exerciseSets = [[ 'weight' => '', 'reps' => '' ]];
-                            }
-                        ?>
-                            <div class="exercise-block" data-index="<?php echo $exerciseIndex; ?>">
-                                <div class="exercise-header">
-                                    <div class="field exercise-name-field">
-                                        <label>Упражнение</label>
-                                        <select name="exercise_name[<?php echo $exerciseIndex; ?>]" class="exercise-name-select">
-                                            <option value="">Выберите упражнение</option>
-                                            <?php foreach ($exerciseCatalog as $item): ?>
-                                                <option value="<?php echo htmlspecialchars((string) $item); ?>" <?php echo $item === $exerciseName ? 'selected' : ''; ?>><?php echo htmlspecialchars((string) $item); ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                    <button type="button" class="remove-exercise-btn danger-btn">Удалить</button>
-                                </div>
+.feature-list li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 1.05rem;
+}
 
-                                <div class="set-list">
-                                    <?php foreach ($exerciseSets as $setIndex => $set): ?>
-                                        <div class="set-row" data-set-index="<?php echo $setIndex; ?>">
-                                            <div class="field">
-                                                <label>Вес, кг</label>
-                                                <input type="number" step="0.5" name="exercise_sets[<?php echo $exerciseIndex; ?>][<?php echo $setIndex; ?>][weight]" value="<?php echo htmlspecialchars((string) ($set['weight'] ?? '')); ?>" />
-                                            </div>
-                                            <div class="field">
-                                                <label>Повторы</label>
-                                                <input type="number" min="1" name="exercise_sets[<?php echo $exerciseIndex; ?>][<?php echo $setIndex; ?>][reps]" value="<?php echo htmlspecialchars((string) ($set['reps'] ?? '')); ?>" />
-                                            </div>
-                                            <button type="button" class="remove-set-btn danger-btn">×</button>
-                                        </div>
-                                    <?php endforeach; ?>
-                                </div>
+.icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.8rem;
+  color: #ffca57;
+}
 
-                                <button type="button" class="secondary-btn add-set-btn">Добавить подход</button>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
+.auth-panel {
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.38);
+  padding: 20px;
+}
 
-                    <div class="actions">
-                        <button type="button" id="addExerciseBtn" class="secondary-btn">Добавить упражнение</button>
-                        <button type="submit" class="primary-btn"><?php echo $editing ? 'Сохранить изменения' : 'Добавить тренировку'; ?></button>
-                        <?php if ($editing): ?>
-                            <a href="dashboard.php" class="secondary-btn">Отмена</a>
-                        <?php endif; ?>
-                    </div>
-                </form>
-            </div>
-        </section>
+.auth-card {
+  width: min(100%, 440px);
+  background: rgba(255,255,255,0.85);
+  border: 1px solid rgba(15,23,42,0.06);
+  border-radius: 28px;
+  padding: 32px 28px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.07);
+}
 
-        <aside class="panel">
-            <div class="section-header">
-                <h2>История</h2>
-            </div>
+.auth-header {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 28px;
+}
 
-            <div class="workout-list">
-                <?php if (empty($myWorkouts)): ?>
-                    <p class="empty-state">Пока нет ни одной тренировки. Добавь первую и начни вести дневник.</p>
-                <?php else: ?>
-                    <?php foreach ($myWorkouts as $item): ?>
-                        <article class="workout-item">
-                            <div class="workout-item-header">
-                                <strong><?php echo htmlspecialchars((string) ($item['date'] ?? '')); ?></strong>
-                            </div>
+.toggle {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+  border-radius: 16px;
+  background: #f2f4f8;
+}
 
-                            <?php if (!empty($item['notes'])): ?>
-                                <p class="workout-notes"><?php echo nl2br(htmlspecialchars((string) $item['notes'])); ?></p>
-                            <?php endif; ?>
+.toggle-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 12px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
 
-                            <div class="exercise-summary">
-                                <?php foreach (($item['exercises'] ?? []) as $exercise): ?>
-                                    <div class="exercise-summary-item">
-                                        <div class="exercise-summary-header">
-                                            <strong><?php echo htmlspecialchars((string) ($exercise['name'] ?? 'Упражнение')); ?></strong>
-                                            <span><?php echo count((array) ($exercise['sets'] ?? [])); ?> подходов</span>
-                                        </div>
+.toggle-btn.active {
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
 
-                                        <div class="set-summary-list">
-                                            <?php foreach (($exercise['sets'] ?? []) as $set): ?>
-                                                <span><?php echo (float) ($set['weight'] ?? 0); ?> кг × <?php echo (int) ($set['reps'] ?? 0); ?></span>
-                                            <?php endforeach; ?>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
+.auth-form { display: grid; gap: 18px; }
 
-                            <div class="actions">
-                                <a class="secondary-btn" href="dashboard.php?edit=<?php echo rawurlencode((string) ($item['id'] ?? '')); ?>">Редактировать</a>
-                                <form method="post" action="dashboard.php" style="display:inline;">
-                                    <input type="hidden" name="action" value="delete_workout" />
-                                    <input type="hidden" name="id" value="<?php echo htmlspecialchars((string) ($item['id'] ?? '')); ?>" />
-                                    <button type="submit" class="danger-btn">Удалить</button>
-                                </form>
-                            </div>
-                        </article>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </div>
-        </aside>
-    </div>
-</div>
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
-<script>
-    const exerciseCatalog = <?php echo json_encode($exerciseCatalog, JSON_UNESCAPED_UNICODE); ?>;
-    const builder = document.getElementById('exerciseBuilder');
+.field label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
 
-    function createExerciseOptionMarkup() {
-        return ['<option value="">Выберите упражнение</option>']
-            .concat(exerciseCatalog.map((exercise) => `<option value="${exercise}">${exercise}</option>`))
-            .join('');
-    }
+.field input,
+.field textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: #f8f9fc;
+  padding: 14px 16px;
+  border-radius: 12px;
+  color: var(--text);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
 
-    function addSetRow(exerciseBlock, setIndex = null) {
-        const setList = exerciseBlock.querySelector('.set-list');
-        const exerciseIndex = exerciseBlock.dataset.index;
-        const nextIndex = setIndex ?? setList.children.length;
+.field input:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: rgba(255, 107, 61, 0.55);
+  box-shadow: 0 0 0 4px rgba(255, 107, 61, 0.12);
+  background: #fff;
+}
 
-        const row = document.createElement('div');
-        row.className = 'set-row';
-        row.dataset.setIndex = String(nextIndex);
-        row.innerHTML = `
-            <div class="field">
-                <label>Вес, кг</label>
-                <input type="number" step="0.5" name="exercise_sets[${exerciseIndex}][${nextIndex}][weight]" />
-            </div>
-            <div class="field">
-                <label>Повторы</label>
-                <input type="number" min="1" name="exercise_sets[${exerciseIndex}][${nextIndex}][reps]" />
-            </div>
-            <button type="button" class="remove-set-btn danger-btn">×</button>
-        `;
+.form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
 
-        setList.appendChild(row);
+.checkbox-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
 
-        row.querySelector('.remove-set-btn').addEventListener('click', () => {
-            row.remove();
-        });
-    }
+.checkbox-wrap input { accent-color: var(--primary); }
 
-    function addExerciseBlock() {
-        const index = builder.querySelectorAll('.exercise-block').length;
-        const block = document.createElement('div');
-        block.className = 'exercise-block';
-        block.dataset.index = String(index);
-        block.innerHTML = `
-            <div class="exercise-header">
-                <div class="field exercise-name-field">
-                    <label>Упражнение</label>
-                    <select name="exercise_name[${index}]" class="exercise-name-select">
-                        ${createExerciseOptionMarkup()}
-                    </select>
-                </div>
-                <button type="button" class="remove-exercise-btn danger-btn">Удалить</button>
-            </div>
-            <div class="set-list">
-                <div class="set-row" data-set-index="0">
-                    <div class="field">
-                        <label>Вес, кг</label>
-                        <input type="number" step="0.5" name="exercise_sets[${index}][0][weight]" />
-                    </div>
-                    <div class="field">
-                        <label>Повторы</label>
-                        <input type="number" min="1" name="exercise_sets[${index}][0][reps]" />
-                    </div>
-                    <button type="button" class="remove-set-btn danger-btn">×</button>
-                </div>
-            </div>
-            <button type="button" class="secondary-btn add-set-btn">Добавить подход</button>
-        `;
+.link {
+  color: var(--primary);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
 
-        block.querySelector('.add-set-btn').addEventListener('click', () => addSetRow(block));
-        block.querySelector('.remove-exercise-btn').addEventListener('click', () => block.remove());
-        block.querySelector('.remove-set-btn').addEventListener('click', () => {
-            const setRow = block.querySelector('.set-row');
-            if (block.querySelectorAll('.set-row').length > 1) {
-                setRow.remove();
-            }
-        });
+.primary-btn {
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: #fff;
+  padding: 16px 18px;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 12px 22px rgba(255, 107, 61, 0.28);
+}
 
-        builder.appendChild(block);
-    }
+.primary-btn:hover { transform: translateY(-1px); }
 
-    document.getElementById('addExerciseBtn').addEventListener('click', addExerciseBlock);
+.divider {
+  position: relative;
+  margin: 18px 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
 
-    document.querySelectorAll('.add-set-btn').forEach((button) => {
-        button.addEventListener('click', () => addSetRow(button.closest('.exercise-block')));
-    });
+.divider::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--line);
+}
 
-    document.querySelectorAll('.remove-exercise-btn').forEach((button) => {
-        button.addEventListener('click', () => button.closest('.exercise-block').remove());
-    });
+.divider span {
+  position: relative;
+  padding: 0 12px;
+  background: rgba(255,255,255,0.85);
+}
 
-    document.querySelectorAll('.remove-set-btn').forEach((button) => {
-        button.addEventListener('click', () => {
-            const block = button.closest('.exercise-block');
-            const row = button.closest('.set-row');
-            if (block.querySelectorAll('.set-row').length > 1) {
-                row.remove();
-            }
-        });
-    });
-</script>
-</body>
-</html>
+.socials {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.social-btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--text);
+  padding: 12px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.message {
+  min-height: 24px;
+  margin: 16px 0 0;
+  font-size: 0.92rem;
+  text-align: center;
+  font-weight: 600;
+}
+
+.message.success { color: var(--success); }
+.message.error { color: var(--error); }
+
+.hidden { display: none; }
+
+@media (max-width: 860px) {
+  .page-shell { grid-template-columns: 1fr; }
+  .brand-panel { padding: 36px 28px 48px; }
+  .brand-copy { margin-top: 54px; }
+}
+
+@media (max-width: 480px) {
+  body { padding: 16px; }
+  .auth-card { padding: 24px 18px; }
+  .form-row { flex-direction: column; align-items: flex-start; }
+  .socials { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   Личный кабинет (dashboard)
+   ============================================================ */
+
+body.dashboard-page {
+  display: block;
+  padding: 0;
+  background: linear-gradient(135deg, #f4f7fb 0%, #eef7f5 100%);
+}
+
+.dashboard-layout {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 32px 20px 64px;
+}
+
+/* --- Верхняя панель --- */
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  border-radius: 22px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.06);
+}
+
+.brand-mini {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.brand-mini .badge {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--primary), #ffb067);
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 10px 22px rgba(255, 107, 61, 0.35);
+}
+
+.user-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), #ffb067);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(255, 107, 61, 0.28);
+}
+
+.user-meta {
+  line-height: 1.3;
+  font-size: 0.95rem;
+}
+
+.user-meta small {
+  color: var(--muted);
+}
+
+.logout-link {
+  background: var(--secondary);
+  color: #fff;
+  text-decoration: none;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.92rem;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.logout-link:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* --- Сетка и панели --- */
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 24px;
+  margin-top: 24px;
+  align-items: start;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05);
+}
+
+.panel-inner {
+  margin-top: 24px;
+  padding: 20px;
+  border-radius: 20px;
+  background: #fbfcfe;
+  box-shadow: none;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.section-header h2,
+.section-header h3 {
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.section-header h2 { font-size: 1.35rem; }
+.section-header h3 { font-size: 1.1rem; }
+
+/* --- Статистика --- */
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.stat-card {
+  border-radius: 20px;
+  padding: 18px 16px;
+  background: linear-gradient(135deg, #fff7f4, #f5f9ff);
+  border: 1px solid rgba(15, 23, 42, 0.04);
+}
+
+.stat-card small {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.stat-card strong {
+  display: block;
+  font-size: clamp(1.6rem, 2vw, 2.3rem);
+  letter-spacing: -0.03em;
+}
+
+/* --- Форма тренировки --- */
+
+.workout-form {
+  display: grid;
+  gap: 16px;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.field select {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: #f8f9fc;
+  padding: 13px 14px;
+  border-radius: 12px;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus {
+  outline: none;
+  border-color: rgba(255, 107, 61, 0.55);
+  box-shadow: 0 0 0 4px rgba(255, 107, 61, 0.12);
+  background: #fff;
+}
+
+.field textarea {
+  resize: vertical;
+  min-height: 84px;
+}
+
+/* --- Конструктор упражнений --- */
+
+.exercise-builder {
+  display: grid;
+  gap: 14px;
+}
+
+.exercise-block {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.exercise-header {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.exercise-name-field { flex: 1 1 auto; }
+
+.exercise-name-select { font-weight: 600; }
+
+.set-list {
+  display: grid;
+  gap: 10px;
+}
+
+.set-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.05);
+}
+
+.set-row .field label {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.set-row .field input {
+  padding: 10px 12px;
+}
+
+.remove-set-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  font-size: 1.2rem;
+  line-height: 1;
+  border-radius: 12px;
+}
+
+.add-set-btn {
+  justify-self: start;
+  font-size: 0.88rem;
+  padding: 10px 14px;
+}
+
+/* --- Кнопки и действия --- */
+
+.primary-btn,
+.secondary-btn,
+.danger-btn {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.primary-btn:hover,
+.secondary-btn:hover,
+.danger-btn:hover { transform: translateY(-1px); }
+
+.secondary-btn {
+  background: #f3f4f6;
+  color: var(--text);
+}
+
+.secondary-btn:hover { background: #e9edf3; }
+
+.danger-btn {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.danger-btn:hover { background: #ffe4e6; }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* --- История тренировок --- */
+
+.workout-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.workout-item {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px;
+}
+
+.workout-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.workout-item-header strong { font-size: 1.05rem; }
+
+.badge {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #fff4ee;
+  color: #d75b2d;
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.workout-notes {
+  margin: 8px 0;
+  color: #374151;
+  line-height: 1.5;
+  font-size: 0.92rem;
+}
+
+.exercise-summary {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.exercise-summary-item {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.05);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.exercise-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.exercise-summary-header span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.set-summary-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.set-summary-list span {
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #f2f4f8;
+  color: #374151;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.empty-state {
+  margin: 0;
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px dashed rgba(15, 23, 42, 0.12);
+  background: #f8fafc;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+/* --- Адаптивность кабинета --- */
+
+@media (max-width: 920px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .dashboard-layout { padding: 20px 14px 48px; }
+
+  .topbar,
+  .section-header,
+  .workout-item-header,
+  .exercise-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .user-block { width: 100%; }
+
+  .stats-grid,
+  .field-grid { grid-template-columns: 1fr; }
+
+  .set-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .remove-set-btn {
+    grid-column: 1 / -1;
+    width: 100%;
+    height: 36px;
+  }
+
+  .actions { justify-content: stretch; }
+  .actions > * { flex: 1 1 auto; }
+}
