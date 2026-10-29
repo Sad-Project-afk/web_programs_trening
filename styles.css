@@ -1,327 +1,447 @@
-:root {
-  --bg: #f4f7fb;
-  --panel: rgba(255, 255, 255, 0.9);
-  --primary: #ff6b3d;
-  --primary-dark: #ea582d;
-  --secondary: #1a1f2b;
-  --text: #1d2333;
-  --muted: #687286;
-  --line: rgba(23, 31, 45, 0.08);
-  --success: #0ea5a4;
-  --error: #d9485f;
-  --shadow: 0 18px 40px rgba(30, 41, 59, 0.12);
+<?php
+require __DIR__ . '/storage.php';
+requireAuth();
+
+$user = currentUser();
+$workouts = readJson(WORKOUTS_FILE);
+$myWorkouts = [];
+
+foreach ($workouts as $workout) {
+    if (($workout['user_email'] ?? '') === $user['email']) {
+        $myWorkouts[] = $workout;
+    }
 }
 
-* { box-sizing: border-box; }
+usort($myWorkouts, function ($a, $b) {
+    return strtotime((string) ($b['date'] ?? '1970-01-01')) <=> strtotime((string) ($a['date'] ?? '1970-01-01'));
+});
 
-html,
-body {
-  margin: 0;
-  min-height: 100%;
-  font-family: "Inter", sans-serif;
-  color: var(--text);
-  background: radial-gradient(circle at top left, rgba(255, 123, 84, 0.14), transparent 30%),
-              linear-gradient(135deg, #fdf7f3 0%, #f4f7fb 100%);
+$exerciseCatalog = readJson(EXERCISES_FILE);
+$editId = $_GET['edit'] ?? null;
+$editing = null;
+if ($editId) {
+    foreach ($myWorkouts as $item) {
+        if (($item['id'] ?? '') === (string) $editId) {
+            $editing = $item;
+            break;
+        }
+    }
 }
 
-body {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 24px;
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = $_POST['action'] ?? '';
+
+    if ($action === 'delete_workout') {
+        $deleteId = (string) ($_POST['id'] ?? '');
+        $updated = [];
+
+        foreach ($workouts as $item) {
+            if (($item['id'] ?? '') !== $deleteId || (($item['user_email'] ?? '') !== $user['email'])) {
+                $updated[] = $item;
+            }
+        }
+
+        writeJson(WORKOUTS_FILE, $updated);
+        setFlash('Тренировка удалена.', 'success');
+        header('Location: dashboard.php');
+        exit;
+    }
+
+    if ($action === 'save_workout') {
+        $id = (string) ($_POST['id'] ?? '');
+        $date = trim((string) ($_POST['date'] ?? ''));
+        $notes = trim((string) ($_POST['notes'] ?? ''));
+        $exerciseNames = $_POST['exercise_name'] ?? [];
+        $exerciseSets = $_POST['exercise_sets'] ?? [];
+
+        if ($date === '') {
+            setFlash('Укажите дату тренировки.', 'error');
+            header('Location: dashboard.php');
+            exit;
+        }
+
+        $exercises = [];
+
+        foreach ($exerciseNames as $exerciseIndex => $exerciseName) {
+            $name = trim((string) $exerciseName);
+            if ($name === '') {
+                continue;
+            }
+
+            $sets = [];
+            $rawSets = $exerciseSets[$exerciseIndex] ?? [];
+
+            if (is_array($rawSets)) {
+                foreach ($rawSets as $setData) {
+                    $weight = isset($setData['weight']) ? (float) $setData['weight'] : 0;
+                    $reps = isset($setData['reps']) ? (int) $setData['reps'] : 0;
+
+                    if ($weight === 0 && $reps === 0) {
+                        continue;
+                    }
+
+                    $sets[] = ['weight' => $weight, 'reps' => $reps];
+                }
+            }
+
+            if (empty($sets)) {
+                continue;
+            }
+
+            $exercises[] = [
+                'id' => uniqid('exercise_', true),
+                'name' => $name,
+                'sets' => $sets,
+            ];
+        }
+
+        if (empty($exercises)) {
+            setFlash('Добавьте хотя бы одно упражнение с подходами.', 'error');
+            header('Location: dashboard.php');
+            exit;
+        }
+
+        $entry = [
+            'id' => $id !== '' ? $id : uniqid('workout_', true),
+            'user_email' => $user['email'],
+            'date' => $date,
+            'notes' => $notes,
+            'exercises' => $exercises,
+            'created_at' => date('Y-m-d H:i:s'),
+        ];
+
+        $updated = [];
+        $found = false;
+
+        foreach ($workouts as $item) {
+            if (($item['id'] ?? '') === $id && (($item['user_email'] ?? '') === $user['email'])) {
+                $updated[] = $entry;
+                $found = true;
+            } else {
+                $updated[] = $item;
+            }
+        }
+
+        if (!$found) {
+            $updated[] = $entry;
+        }
+
+        writeJson(WORKOUTS_FILE, $updated);
+        setFlash($id === '' ? 'Тренировка добавлена.' : 'Тренировка обновлена.', 'success');
+        header('Location: dashboard.php');
+        exit;
+    }
 }
 
-button,
-input,
-textarea {
-  font: inherit;
+$flash = getFlash();
+$summarySets = 0;
+$summaryTotal = count($myWorkouts);
+$avgWeight = 0;
+
+foreach ($myWorkouts as $item) {
+    foreach (($item['exercises'] ?? []) as $exercise) {
+        $summarySets += count((array) ($exercise['sets'] ?? []));
+    }
 }
 
-.page-shell {
-  width: min(1100px, 100%);
-  min-height: 700px;
-  display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 32px;
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(14px);
-  overflow: hidden;
+if ($summaryTotal > 0) {
+    $weights = [];
+    foreach ($myWorkouts as $item) {
+        foreach (($item['exercises'] ?? []) as $exercise) {
+            foreach (($exercise['sets'] ?? []) as $set) {
+                $weights[] = (float) ($set['weight'] ?? 0);
+            }
+        }
+    }
+
+    if (!empty($weights)) {
+        $avgWeight = round(array_sum($weights) / count($weights), 1);
+    }
 }
+?>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FitLog — Личный кабинет</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="dashboard-page">
+<div class="dashboard-layout">
+    <header class="topbar">
+        <div class="brand-mini">
+            <div class="badge">F</div>
+            <span>FitLog</span>
+        </div>
 
-.brand-panel {
-  position: relative;
-  padding: 52px 48px;
-  background: linear-gradient(180deg, rgba(16, 24, 40, 0.96), rgba(22, 32, 46, 0.96)),
-              linear-gradient(135deg, #121a2a, #1f2b3d);
-  color: #fff;
-}
+        <div class="user-block">
+            <div class="avatar"><?php echo strtoupper(substr($user['name'], 0, 1)); ?></div>
+            <div class="user-meta">
+                <div><strong><?php echo htmlspecialchars($user['name']); ?></strong></div>
+                <small><?php echo htmlspecialchars($user['email']); ?></small>
+            </div>
+            <a href="logout.php" class="logout-link">Выйти</a>
+        </div>
+    </header>
 
-.brand-panel::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at bottom right, rgba(255, 120, 83, 0.28), transparent 30%);
-}
+    <?php if ($flash): ?>
+        <p class="message <?php echo $flash['type'] === 'error' ? 'error' : 'success'; ?>"><?php echo htmlspecialchars($flash['message']); ?></p>
+    <?php endif; ?>
 
-.brand-header,
-.brand-copy,
-.feature-list {
-  position: relative;
-  z-index: 1;
-}
+    <div class="dashboard-grid">
+        <section class="panel">
+            <div class="section-header">
+                <h2>Обзор</h2>
+            </div>
 
-.brand-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <small>Тренировки</small>
+                    <strong><?php echo $summaryTotal; ?></strong>
+                </div>
+                <div class="stat-card">
+                    <small>Подходы</small>
+                    <strong><?php echo $summarySets; ?></strong>
+                </div>
+                <div class="stat-card">
+                    <small>Средний вес</small>
+                    <strong><?php echo $avgWeight; ?> кг</strong>
+                </div>
+            </div>
 
-.brand-badge {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--primary), #ff9a67);
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  box-shadow: 0 10px 25px rgba(255, 107, 61, 0.45);
-}
+            <div class="panel panel-inner">
+                <div class="section-header">
+                    <h3><?php echo $editing ? 'Редактировать тренировку' : 'Добавить тренировку'; ?></h3>
+                </div>
 
-.brand-copy { margin-top: 82px; }
+                <form method="post" action="dashboard.php" class="workout-form" id="workoutForm">
+                    <input type="hidden" name="action" value="save_workout" />
+                    <input type="hidden" name="id" value="<?php echo htmlspecialchars((string) ($editing['id'] ?? '')); ?>" />
 
-.eyebrow {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.7);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
+                    <div class="field-grid">
+                        <div class="field">
+                            <label for="date">Дата</label>
+                            <input id="date" name="date" type="date" value="<?php echo htmlspecialchars((string) ($editing['date'] ?? date('Y-m-d'))); ?>" required />
+                        </div>
+                    </div>
 
-.brand-copy h1 {
-  margin-top: 18px;
-  max-width: 470px;
-  font-size: clamp(2.2rem, 4vw, 4rem);
-  line-height: 1.05;
-  letter-spacing: -0.06em;
-}
+                    <div class="field">
+                        <label for="notes">Заметки</label>
+                        <textarea id="notes" name="notes" placeholder="Что важно запомнить после тренировки?"><?php echo htmlspecialchars((string) ($editing['notes'] ?? '')); ?></textarea>
+                    </div>
 
-.feature-list {
-  list-style: none;
-  padding: 0;
-  margin: 48px 0 0;
-  display: grid;
-  gap: 18px;
-}
+                    <div class="exercise-builder" id="exerciseBuilder" data-next-index="0">
+                        <?php
+                        $exerciseRows = $editing['exercises'] ?? [];
+                        if (empty($exerciseRows)) {
+                            $exerciseRows = [[ 'name' => '', 'sets' => [[ 'weight' => '', 'reps' => '' ]] ]];
+                        }
 
-.feature-list li {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  color: rgba(255, 255, 255, 0.86);
-  font-size: 1.05rem;
-}
+                        foreach ($exerciseRows as $exerciseIndex => $exercise):
+                            $exerciseName = $exercise['name'] ?? '';
+                            $exerciseSets = $exercise['sets'] ?? [[ 'weight' => '', 'reps' => '' ]];
+                            if (empty($exerciseSets)) {
+                                $exerciseSets = [[ 'weight' => '', 'reps' => '' ]];
+                            }
+                        ?>
+                            <div class="exercise-block" data-index="<?php echo $exerciseIndex; ?>">
+                                <div class="exercise-header">
+                                    <div class="field exercise-name-field">
+                                        <label>Упражнение</label>
+                                        <select name="exercise_name[<?php echo $exerciseIndex; ?>]" class="exercise-name-select">
+                                            <option value="">Выберите упражнение</option>
+                                            <?php foreach ($exerciseCatalog as $item): ?>
+                                                <option value="<?php echo htmlspecialchars((string) $item); ?>" <?php echo $item === $exerciseName ? 'selected' : ''; ?>><?php echo htmlspecialchars((string) $item); ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <button type="button" class="remove-exercise-btn danger-btn">Удалить</button>
+                                </div>
 
-.icon {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 0.8rem;
-  color: #ffca57;
-}
+                                <div class="set-list">
+                                    <?php foreach ($exerciseSets as $setIndex => $set): ?>
+                                        <div class="set-row" data-set-index="<?php echo $setIndex; ?>">
+                                            <div class="field">
+                                                <label>Вес, кг</label>
+                                                <input type="number" step="0.5" name="exercise_sets[<?php echo $exerciseIndex; ?>][<?php echo $setIndex; ?>][weight]" value="<?php echo htmlspecialchars((string) ($set['weight'] ?? '')); ?>" />
+                                            </div>
+                                            <div class="field">
+                                                <label>Повторы</label>
+                                                <input type="number" min="1" name="exercise_sets[<?php echo $exerciseIndex; ?>][<?php echo $setIndex; ?>][reps]" value="<?php echo htmlspecialchars((string) ($set['reps'] ?? '')); ?>" />
+                                            </div>
+                                            <button type="button" class="remove-set-btn danger-btn">×</button>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
 
-.auth-panel {
-  display: grid;
-  place-items: center;
-  background: rgba(255, 255, 255, 0.38);
-  padding: 20px;
-}
+                                <button type="button" class="secondary-btn add-set-btn">Добавить подход</button>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
 
-.auth-card {
-  width: min(100%, 440px);
-  background: rgba(255,255,255,0.85);
-  border: 1px solid rgba(15,23,42,0.06);
-  border-radius: 28px;
-  padding: 32px 28px;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.07);
-}
+                    <div class="actions">
+                        <button type="button" id="addExerciseBtn" class="secondary-btn">Добавить упражнение</button>
+                        <button type="submit" class="primary-btn"><?php echo $editing ? 'Сохранить изменения' : 'Добавить тренировку'; ?></button>
+                        <?php if ($editing): ?>
+                            <a href="dashboard.php" class="secondary-btn">Отмена</a>
+                        <?php endif; ?>
+                    </div>
+                </form>
+            </div>
+        </section>
 
-.auth-header {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 28px;
-}
+        <aside class="panel">
+            <div class="section-header">
+                <h2>История</h2>
+            </div>
 
-.toggle {
-  width: 100%;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 8px;
-  border-radius: 16px;
-  background: #f2f4f8;
-}
+            <div class="workout-list">
+                <?php if (empty($myWorkouts)): ?>
+                    <p class="empty-state">Пока нет ни одной тренировки. Добавь первую и начни вести дневник.</p>
+                <?php else: ?>
+                    <?php foreach ($myWorkouts as $item): ?>
+                        <article class="workout-item">
+                            <div class="workout-item-header">
+                                <strong><?php echo htmlspecialchars((string) ($item['date'] ?? '')); ?></strong>
+                            </div>
 
-.toggle-btn {
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font-weight: 600;
-  padding: 12px 14px;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
+                            <?php if (!empty($item['notes'])): ?>
+                                <p class="workout-notes"><?php echo nl2br(htmlspecialchars((string) $item['notes'])); ?></p>
+                            <?php endif; ?>
 
-.toggle-btn.active {
-  background: #fff;
-  color: var(--text);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
-}
+                            <div class="exercise-summary">
+                                <?php foreach (($item['exercises'] ?? []) as $exercise): ?>
+                                    <div class="exercise-summary-item">
+                                        <div class="exercise-summary-header">
+                                            <strong><?php echo htmlspecialchars((string) ($exercise['name'] ?? 'Упражнение')); ?></strong>
+                                            <span><?php echo count((array) ($exercise['sets'] ?? [])); ?> подходов</span>
+                                        </div>
 
-.auth-form { display: grid; gap: 18px; }
+                                        <div class="set-summary-list">
+                                            <?php foreach (($exercise['sets'] ?? []) as $set): ?>
+                                                <span><?php echo (float) ($set['weight'] ?? 0); ?> кг × <?php echo (int) ($set['reps'] ?? 0); ?></span>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+                            <div class="actions">
+                                <a class="secondary-btn" href="dashboard.php?edit=<?php echo rawurlencode((string) ($item['id'] ?? '')); ?>">Редактировать</a>
+                                <form method="post" action="dashboard.php" style="display:inline;">
+                                    <input type="hidden" name="action" value="delete_workout" />
+                                    <input type="hidden" name="id" value="<?php echo htmlspecialchars((string) ($item['id'] ?? '')); ?>" />
+                                    <button type="submit" class="danger-btn">Удалить</button>
+                                </form>
+                            </div>
+                        </article>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </aside>
+    </div>
+</div>
 
-.field label {
-  font-size: 0.9rem;
-  font-weight: 600;
-}
+<script>
+    const exerciseCatalog = <?php echo json_encode($exerciseCatalog, JSON_UNESCAPED_UNICODE); ?>;
+    const builder = document.getElementById('exerciseBuilder');
 
-.field input,
-.field textarea {
-  width: 100%;
-  border: 1px solid var(--line);
-  background: #f8f9fc;
-  padding: 14px 16px;
-  border-radius: 12px;
-  color: var(--text);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
+    function createExerciseOptionMarkup() {
+        return ['<option value="">Выберите упражнение</option>']
+            .concat(exerciseCatalog.map((exercise) => `<option value="${exercise}">${exercise}</option>`))
+            .join('');
+    }
 
-.field input:focus,
-.field textarea:focus {
-  outline: none;
-  border-color: rgba(255, 107, 61, 0.55);
-  box-shadow: 0 0 0 4px rgba(255, 107, 61, 0.12);
-  background: #fff;
-}
+    function addSetRow(exerciseBlock, setIndex = null) {
+        const setList = exerciseBlock.querySelector('.set-list');
+        const exerciseIndex = exerciseBlock.dataset.index;
+        const nextIndex = setIndex ?? setList.children.length;
 
-.form-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
+        const row = document.createElement('div');
+        row.className = 'set-row';
+        row.dataset.setIndex = String(nextIndex);
+        row.innerHTML = `
+            <div class="field">
+                <label>Вес, кг</label>
+                <input type="number" step="0.5" name="exercise_sets[${exerciseIndex}][${nextIndex}][weight]" />
+            </div>
+            <div class="field">
+                <label>Повторы</label>
+                <input type="number" min="1" name="exercise_sets[${exerciseIndex}][${nextIndex}][reps]" />
+            </div>
+            <button type="button" class="remove-set-btn danger-btn">×</button>
+        `;
 
-.checkbox-wrap {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 0.9rem;
-}
+        setList.appendChild(row);
 
-.checkbox-wrap input { accent-color: var(--primary); }
+        row.querySelector('.remove-set-btn').addEventListener('click', () => {
+            row.remove();
+        });
+    }
 
-.link {
-  color: var(--primary);
-  text-decoration: none;
-  font-size: 0.9rem;
-  font-weight: 600;
-}
+    function addExerciseBlock() {
+        const index = builder.querySelectorAll('.exercise-block').length;
+        const block = document.createElement('div');
+        block.className = 'exercise-block';
+        block.dataset.index = String(index);
+        block.innerHTML = `
+            <div class="exercise-header">
+                <div class="field exercise-name-field">
+                    <label>Упражнение</label>
+                    <select name="exercise_name[${index}]" class="exercise-name-select">
+                        ${createExerciseOptionMarkup()}
+                    </select>
+                </div>
+                <button type="button" class="remove-exercise-btn danger-btn">Удалить</button>
+            </div>
+            <div class="set-list">
+                <div class="set-row" data-set-index="0">
+                    <div class="field">
+                        <label>Вес, кг</label>
+                        <input type="number" step="0.5" name="exercise_sets[${index}][0][weight]" />
+                    </div>
+                    <div class="field">
+                        <label>Повторы</label>
+                        <input type="number" min="1" name="exercise_sets[${index}][0][reps]" />
+                    </div>
+                    <button type="button" class="remove-set-btn danger-btn">×</button>
+                </div>
+            </div>
+            <button type="button" class="secondary-btn add-set-btn">Добавить подход</button>
+        `;
 
-.primary-btn {
-  border: none;
-  border-radius: 14px;
-  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-  color: #fff;
-  padding: 16px 18px;
-  font-weight: 700;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 12px 22px rgba(255, 107, 61, 0.28);
-}
+        block.querySelector('.add-set-btn').addEventListener('click', () => addSetRow(block));
+        block.querySelector('.remove-exercise-btn').addEventListener('click', () => block.remove());
+        block.querySelector('.remove-set-btn').addEventListener('click', () => {
+            const setRow = block.querySelector('.set-row');
+            if (block.querySelectorAll('.set-row').length > 1) {
+                setRow.remove();
+            }
+        });
 
-.primary-btn:hover { transform: translateY(-1px); }
+        builder.appendChild(block);
+    }
 
-.divider {
-  position: relative;
-  margin: 18px 0 0;
-  text-align: center;
-  color: var(--muted);
-  font-size: 0.8rem;
-}
+    document.getElementById('addExerciseBtn').addEventListener('click', addExerciseBlock);
 
-.divider::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 1px;
-  background: var(--line);
-}
+    document.querySelectorAll('.add-set-btn').forEach((button) => {
+        button.addEventListener('click', () => addSetRow(button.closest('.exercise-block')));
+    });
 
-.divider span {
-  position: relative;
-  padding: 0 12px;
-  background: rgba(255,255,255,0.85);
-}
+    document.querySelectorAll('.remove-exercise-btn').forEach((button) => {
+        button.addEventListener('click', () => button.closest('.exercise-block').remove());
+    });
 
-.socials {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.social-btn {
-  border: 1px solid var(--line);
-  background: #fff;
-  color: var(--text);
-  padding: 12px 16px;
-  border-radius: 12px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.message {
-  min-height: 24px;
-  margin: 16px 0 0;
-  font-size: 0.92rem;
-  text-align: center;
-  font-weight: 600;
-}
-
-.message.success { color: var(--success); }
-.message.error { color: var(--error); }
-
-.hidden { display: none; }
-
-@media (max-width: 860px) {
-  .page-shell { grid-template-columns: 1fr; }
-  .brand-panel { padding: 36px 28px 48px; }
-  .brand-copy { margin-top: 54px; }
-}
-
-@media (max-width: 480px) {
-  body { padding: 16px; }
-  .auth-card { padding: 24px 18px; }
-  .form-row { flex-direction: column; align-items: flex-start; }
-  .socials { grid-template-columns: 1fr; }
-}
+    document.querySelectorAll('.remove-set-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+            const block = button.closest('.exercise-block');
+            const row = button.closest('.set-row');
+            if (block.querySelectorAll('.set-row').length > 1) {
+                row.remove();
+            }
+        });
+    });
+</script>
+</body>
+</html>
