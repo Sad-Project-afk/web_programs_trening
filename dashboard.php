@@ -68,7 +68,6 @@ $flash = getFlash();
                     ?>
                         <article class="exercise-block" data-index="<?php echo $exerciseIndex; ?>">
                             <div class="exercise-top">
-                                <span class="exercise-num"><?php echo $exerciseIndex + 1; ?></span>
                                 <label class="visually-hidden" for="exercise-name-<?php echo $exerciseIndex; ?>">Упражнение</label>
                                 <select id="exercise-name-<?php echo $exerciseIndex; ?>" name="exercise_name[<?php echo $exerciseIndex; ?>]" class="exercise-name-select">
                                     <option value="">Выберите упражнение</option>
@@ -77,7 +76,6 @@ $flash = getFlash();
                                     <?php endforeach; ?>
                                 </select>
                                 <span class="exercise-count"><?php echo count($exerciseSets); ?> <?php echo pluralRu(count($exerciseSets), 'подход', 'подхода', 'подходов'); ?></span>
-                                <button type="button" class="icon-btn remove-exercise-btn" aria-label="Удалить упражнение">✕</button>
                             </div>
 
                             <div class="set-list">
@@ -100,7 +98,10 @@ $flash = getFlash();
                                 <?php endforeach; ?>
                             </div>
 
-                            <button type="button" class="add-set-btn">+ подход</button>
+                            <div class="exercise-actions">
+                                <button type="button" class="add-set-btn">+ подход</button>
+                                <button type="button" class="remove-exercise-btn">Удалить упражнение</button>
+                            </div>
                         </article>
                     <?php endforeach; ?>
                 </div>
@@ -149,8 +150,11 @@ $flash = getFlash();
     function renumber() {
         builder.querySelectorAll('.exercise-block').forEach((block, exerciseIndex) => {
             block.dataset.index = String(exerciseIndex);
-            block.querySelector('.exercise-num').textContent = String(exerciseIndex + 1);
-            block.querySelector('.exercise-name-select').name = `exercise_name[${exerciseIndex}]`;
+
+            const select = block.querySelector('.exercise-name-select');
+            select.name = `exercise_name[${exerciseIndex}]`;
+            select.id = `exercise-name-${exerciseIndex}`;
+            block.querySelector('.exercise-top label').htmlFor = select.id;
 
             block.querySelectorAll('.set-row').forEach((row, setIndex) => {
                 row.dataset.setIndex = String(setIndex);
@@ -210,16 +214,17 @@ $flash = getFlash();
         block.className = 'exercise-block';
         block.innerHTML = `
             <div class="exercise-top">
-                <span class="exercise-num">1</span>
                 <label class="visually-hidden">Упражнение</label>
                 <select class="exercise-name-select">
                     ${createExerciseOptionMarkup()}
                 </select>
                 <span class="exercise-count">1 подход</span>
-                <button type="button" class="icon-btn remove-exercise-btn" aria-label="Удалить упражнение">✕</button>
             </div>
             <div class="set-list"></div>
-            <button type="button" class="add-set-btn">+ подход</button>
+            <div class="exercise-actions">
+                <button type="button" class="add-set-btn">+ подход</button>
+                <button type="button" class="remove-exercise-btn">Удалить упражнение</button>
+            </div>
         `;
 
         block.querySelector('.set-list').appendChild(createSetRow());
