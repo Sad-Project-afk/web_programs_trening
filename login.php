@@ -16,6 +16,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $confirmPassword = (string) ($_POST['confirmPassword'] ?? '');
 
     if ($action === 'register') {
+        $clientIp = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+
+        if (!registrationAllowed($clientIp)) {
+            setFlash('Слишком много попыток регистрации с этого устройства. Подождите пару минут и попробуйте снова.', 'error');
+            header('Location: login.php');
+            exit;
+        }
+
+        recordRegistrationAttempt($clientIp);
+
         if ($name === '' || $email === '' || $password === '' || $confirmPassword === '') {
             setFlash('Заполните все поля.', 'error');
             header('Location: login.php');
@@ -152,13 +162,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     <button type="submit" class="primary-btn" id="submitBtn">Войти</button>
                 </form>
-
-                <div class="divider"><span>или</span></div>
-
-                <div class="socials">
-                    <button type="button" class="social-btn">Google</button>
-                    <button type="button" class="social-btn">Apple</button>
-                </div>
             </div>
         </main>
     </div>
