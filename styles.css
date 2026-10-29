@@ -452,7 +452,7 @@ body.dashboard-page {
 
 .main-nav {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
   margin-top: 10px;
   padding: 4px;
@@ -602,6 +602,115 @@ body.dashboard-page {
   font-size: 0.68rem;
   font-weight: 600;
   color: var(--muted);
+}
+
+/* --- Прогресс --- */
+
+.control-panel {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.control-panel .field select {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8f9fc;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.05);
+  border: 1px solid var(--line);
+}
+
+.seg-btn {
+  padding: 7px 4px;
+  border-radius: 8px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.seg-btn:hover {
+  color: var(--text);
+}
+
+.seg-btn.is-active {
+  background: #fff;
+  color: var(--primary);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+}
+
+.progress-stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.progress-stats .stat-card strong.is-negative {
+  color: #be123c;
+}
+
+.chart-box {
+  margin: 12px 0 0;
+}
+
+.chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.chart-svg line.grid {
+  stroke: rgba(15, 23, 42, 0.08);
+  stroke-width: 1;
+}
+
+.chart-svg text {
+  fill: #9aa3b2;
+  font-size: 8.5px;
+  font-weight: 600;
+}
+
+.chart-svg text.y-l {
+  text-anchor: end;
+}
+
+.chart-svg text.x-l {
+  text-anchor: middle;
+}
+
+.chart-svg text.chart-val {
+  fill: #6b7280;
+  font-size: 8px;
+  text-anchor: middle;
+}
+
+.chart-svg polyline.chart-line {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart-svg circle.chart-dot {
+  fill: #fff;
+  stroke: var(--primary);
+  stroke-width: 2;
 }
 
 /* --- Форма --- */

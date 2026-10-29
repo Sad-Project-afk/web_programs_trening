@@ -38,6 +38,11 @@ function renderNav(string $active): void
             'label' => 'История',
             'icon' => '<path d="M4 19v-6M10 19V5M16 19v-7M22 19H2"/>',
         ],
+        'progress' => [
+            'href' => 'progress.php',
+            'label' => 'Прогресс',
+            'icon' => '<path d="M4 19V6M4 19h16M8 15l3-4 3 2 4-6"/>',
+        ],
     ];
     ?>
     <nav class="main-nav" aria-label="Разделы дневника">
