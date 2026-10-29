@@ -44,6 +44,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
+        $passwordLength = function_exists('mb_strlen') ? mb_strlen($password) : strlen($password);
+        if (
+            $passwordLength < 6
+            || !preg_match('/[A-ZА-ЯЁ]/u', $password)
+            || !preg_match('/[0-9]/', $password)
+        ) {
+            setFlash('Пароль должен быть не короче 6 символов и содержать заглавную букву и цифру.', 'error');
+            header('Location: login.php');
+            exit;
+        }
+
         $users = readJson(USERS_FILE);
         foreach ($users as $user) {
             if (strtolower((string) ($user['email'] ?? '')) === $email) {
@@ -129,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <p id="message" class="message <?php echo $flash['type'] === 'error' ? 'error' : 'success'; ?>"><?php echo htmlspecialchars($flash['message']); ?></p>
                 <?php endif; ?>
 
-                <form id="authForm" class="auth-form" method="post" action="login.php">
+                <form id="authForm" class="auth-form" method="post" action="login.php" novalidate>
                     <input type="hidden" name="action" id="formAction" value="login" />
 
                     <div class="field hidden" id="nameField">

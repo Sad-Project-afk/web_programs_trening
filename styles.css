@@ -220,6 +220,26 @@ textarea {
   background: #fff;
 }
 
+.auth-form .field input.is-valid {
+  border-color: #16a34a;
+  background: #fff;
+}
+
+.auth-form .field input.is-valid:focus {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14);
+}
+
+.auth-form .field input.is-invalid {
+  border-color: #ef4444;
+  background: #fff;
+}
+
+.auth-form .field input.is-invalid:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12);
+}
+
 .form-row {
   display: flex;
   align-items: center;
