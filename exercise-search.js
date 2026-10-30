@@ -70,17 +70,22 @@
       });
     };
 
-    const open = () => {
-      if (!list.hidden) {
-        return;
-      }
-      render(input.value);
+    const showList = () => {
       list.hidden = false;
       input.setAttribute('aria-expanded', 'true');
       if (openSearch) {
         openSearch.close();
       }
       openSearch = api;
+    };
+
+    const open = () => {
+      if (list.hidden) {
+        // Показываем весь список (как при пустом поле), а не отфильтрованный
+        // предзаполненной строкой — выпадашка ведёт себя одинаково на всех страницах.
+        render('');
+        showList();
+      }
     };
 
     const close = () => {
@@ -97,7 +102,7 @@
     input.addEventListener('input', () => {
       render(input.value);
       if (list.hidden) {
-        open();
+        showList();
       }
     });
     input.addEventListener('blur', () => {
