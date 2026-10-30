@@ -143,6 +143,21 @@ $highlight = (string) ($_GET['highlight'] ?? '');
     if (highlightedWorkout) {
         highlightedWorkout.scrollIntoView({ block: 'center' });
     }
+
+    // Аккордеон: при раскрытии одной тренировки закрываем остальные.
+    document.querySelectorAll('details.workout-item').forEach((card) => {
+        card.addEventListener('toggle', () => {
+            if (!card.open) {
+                return;
+            }
+
+            document.querySelectorAll('details.workout-item').forEach((other) => {
+                if (other !== card) {
+                    other.open = false;
+                }
+            });
+        });
+    });
 </script>
 </body>
 </html>

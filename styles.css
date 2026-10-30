@@ -792,6 +792,11 @@ body.dashboard-page {
 .exercise-builder {
   display: grid;
   gap: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  /* Запасной лимит до расчёта точной высоты из JS */
+  max-height: 60vh;
 }
 
 .exercise-block {
@@ -888,6 +893,11 @@ body.dashboard-page {
   background: #fff;
   box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
   text-align: left;
+}
+
+.ex-search.ex-search-open-up .ex-search-list {
+  top: auto;
+  bottom: calc(100% + 4px);
 }
 
 .ex-search-option {

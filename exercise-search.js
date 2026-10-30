@@ -85,6 +85,12 @@
         // предзаполненной строкой — выпадашка ведёт себя одинаково на всех страницах.
         render('');
         showList();
+
+        // Внутри прокручиваемого блока список раскрываем вверх, если снизу мало места.
+        const rect = input.getBoundingClientRect();
+        const listHeight = Math.min(220, list.scrollHeight || 220);
+        const spaceBelow = window.innerHeight - rect.bottom;
+        wrapper.classList.toggle('ex-search-open-up', spaceBelow < listHeight + 8);
       }
     };
 

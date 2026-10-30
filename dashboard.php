@@ -268,6 +268,7 @@ $flash = getFlash();
         expandOnly(block);
         renumber();
         block.querySelector('.ex-search-input').focus();
+        builder.scrollTop = builder.scrollHeight;
     }
 
     function removeExerciseBlock(block) {
@@ -299,6 +300,36 @@ $flash = getFlash();
         setupExerciseSearch(block.querySelector('.ex-search'), exerciseCatalog);
         setCollapsed(block, index > 0);
     });
+
+    function fitBuilderHeight() {
+        const builderEl = document.getElementById('exerciseBuilder');
+
+        if (!builderEl) return;
+
+        const layout = document.querySelector('.dashboard-layout');
+        const layoutPadBottom = layout ? parseFloat(getComputedStyle(layout).paddingBottom) || 0 : 0;
+        const panel = builderEl.closest('.panel');
+        const panelPadBottom = panel ? parseFloat(getComputedStyle(panel).paddingBottom) || 0 : 0;
+
+        // Высота, занимаемая всем, что ниже построителя (упражнения), — она не зависит
+        // от высоты самого построителя.
+        const builderTop = builderEl.getBoundingClientRect().top;
+        let lastBottom = builderEl.getBoundingClientRect().bottom;
+        let node = builderEl.nextElementSibling;
+
+        while (node) {
+            lastBottom = node.getBoundingClientRect().bottom;
+            node = node.nextElementSibling;
+        }
+
+        const belowFixed = (lastBottom - builderEl.getBoundingClientRect().bottom) + panelPadBottom;
+        const maxHeight = Math.max(80, window.innerHeight - builderTop - belowFixed - layoutPadBottom);
+        builderEl.style.maxHeight = `${maxHeight}px`;
+    }
+
+    window.addEventListener('resize', fitBuilderHeight);
+    window.addEventListener('load', fitBuilderHeight);
+    fitBuilderHeight();
 
     document.getElementById('addExerciseBtn').addEventListener('click', addExerciseBlock);
 </script>
