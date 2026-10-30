@@ -139,16 +139,22 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
     }
+    // Не очищаем поля здесь: браузер собирает данные формы после обработчиков,
+    // и очистка до отправки уносит пустые значения. Страница сама перезагрузится.
+  });
 
-    // Поля очищаются после отправки формы.
-    nameInput.value = '';
-    emailInput.value = '';
-    passwordInput.value = '';
-    confirmPasswordInput.value = '';
-    clearStyle(nameInput);
-    clearStyle(emailInput);
-    clearStyle(passwordInput);
-    clearStyle(confirmPasswordInput);
+  // Показать / скрыть введённый пароль.
+  document.querySelectorAll('.pw-toggle').forEach((button) => {
+    button.addEventListener('click', () => {
+      const input = document.getElementById(button.dataset.target);
+      if (!input) return;
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      button.classList.toggle('is-visible', show);
+      button.setAttribute('aria-pressed', String(show));
+      button.setAttribute('aria-label', show ? 'Скрыть пароль' : 'Показать пароль');
+      input.focus();
+    });
   });
 
   // Возврат браузером из bfcache: форма не должна показывать прежние данные.

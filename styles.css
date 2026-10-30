@@ -212,6 +212,55 @@ textarea {
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+.password-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-wrap input {
+  padding-right: 46px;
+}
+
+.pw-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: #9aa3b2;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.pw-toggle:hover {
+  color: var(--text);
+  background: #f1f4f9;
+}
+
+.pw-toggle svg {
+  width: 19px;
+  height: 19px;
+}
+
+.pw-eye-off {
+  display: none;
+}
+
+.pw-toggle.is-visible .pw-eye {
+  display: none;
+}
+
+.pw-toggle.is-visible .pw-eye-off {
+  display: block;
+}
+
 .field input:focus,
 .field textarea:focus {
   outline: none;
