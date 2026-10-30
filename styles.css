@@ -396,10 +396,9 @@ body.dashboard-page {
   gap: 10px;
   padding: 9px 11px;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
+  background: #fff;
   border: 1px solid var(--line);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-  backdrop-filter: blur(12px);
 }
 
 .brand-mini {
@@ -516,6 +515,16 @@ body.dashboard-page {
   width: 17px;
   height: 17px;
   flex: 0 0 17px;
+}
+
+/* Мобильные: меню держится под шапкой, чтобы не уходить под неё при прокрутке */
+@media (max-width: 559px) {
+  .main-nav {
+    position: sticky;
+    top: 66px;
+    z-index: 15;
+    background: #f2f6f9;
+  }
 }
 
 /* --- Сообщения --- */
