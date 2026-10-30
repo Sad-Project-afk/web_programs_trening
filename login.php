@@ -136,9 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
 
-                <?php if ($flash): ?>
-                    <p id="message" class="message <?php echo $flash['type'] === 'error' ? 'error' : 'success'; ?>"><?php echo htmlspecialchars($flash['message']); ?></p>
-                <?php endif; ?>
+                <p id="message" class="message<?php echo $flash ? ' ' . ($flash['type'] === 'error' ? 'error' : 'success') : ''; ?>"><?php echo $flash ? htmlspecialchars($flash['message']) : ''; ?></p>
 
                 <form id="authForm" class="auth-form" method="post" action="login.php" novalidate>
                     <input type="hidden" name="action" id="formAction" value="login" />
