@@ -23,15 +23,17 @@
     closeOpen();
   });
 
-  // Пока список открыт, следим за прокруткой и поворотом экрана,
-  // чтобы держать его пристыкованным к полю.
+  // Пока список открыт, пересчитываем его высоту/направление при изменении
+  // размера окна или открытии клавиатуры (visualViewport).
   const repositionOpen = () => {
     if (openSearch && openSearch.position) {
       openSearch.position();
     }
   };
-  window.addEventListener('scroll', repositionOpen, true);
   window.addEventListener('resize', repositionOpen);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', repositionOpen);
+  }
 
   function setupExerciseSearch(wrapper, options, config) {
     const input = wrapper.querySelector('input.ex-search-input');
@@ -99,25 +101,53 @@
       }
     };
 
-    // Список позиционируем относительно окна (position: fixed), чтобы
-    // прокручиваемый блок упражнений не обрезал его.
+    // Список держим в потоке (абсолютно относительно .ex-search), чтобы на телефоне
+    // он двигался вместе с полем, когда браузер подстраивается под клавиатуру.
+    // Высоту подгоняем под реально доступное место, чтобы результат не прятался.
     const position = () => {
+      list.style.position = '';
+      list.style.margin = '';
+      list.style.left = '';
+      list.style.width = '';
+      list.style.zIndex = '';
+
       const rect = input.getBoundingClientRect();
-      const listHeight = Math.min(220, list.scrollHeight || 220);
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const up = spaceBelow < listHeight + 8;
+      const vv = window.visualViewport;
+      const vTop = vv ? vv.offsetTop : 0;
+      const vBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+
+      const builder = wrapper.closest('.exercise-builder');
+      const bRect = builder ? builder.getBoundingClientRect() : null;
+
+      const spaceBelowVisual = vBottom - rect.bottom;
+      const spaceAboveVisual = rect.top - vTop;
+      const builderSpaceBelow = bRect ? bRect.bottom - rect.bottom : Infinity;
+      const builderSpaceAbove = bRect ? rect.top - bRect.top : Infinity;
+
+      // Сначала решаем, куда открывать: вниз, если в прокручиваемом блоке есть место;
+      // иначе — вверх (чтобы не обрезало краем блока).
+      const wantDown = builderSpaceBelow >= 160;
+      const up = !wantDown && Math.min(builderSpaceAbove, spaceAboveVisual) >= 160;
       wrapper.classList.toggle('ex-search-open-up', up);
-      list.style.position = 'fixed';
-      list.style.margin = '0';
-      list.style.left = `${rect.left}px`;
-      list.style.width = `${rect.width}px`;
-      list.style.zIndex = '400';
+
+      // Высоту ограничиваем доступным местом, чтобы список был виден над клавиатурой.
+      let maxHeight;
       if (up) {
-        list.style.top = 'auto';
-        list.style.bottom = `${window.innerHeight - rect.top + 4}px`;
+        maxHeight = Math.min(220, builderSpaceAbove - 8, spaceAboveVisual - 8);
       } else {
-        list.style.top = `${rect.bottom + 4}px`;
-        list.style.bottom = 'auto';
+        maxHeight = Math.min(220, builderSpaceBelow - 8, spaceBelowVisual - 8);
+      }
+      list.style.maxHeight = `${Math.max(72, maxHeight)}px`;
+
+      // Подкручиваем прокрутку построителя, чтобы список оказался в видимой зоне.
+      if (bRect) {
+        const lRect = list.getBoundingClientRect();
+        if (lRect.top < bRect.top + 4 && builder.scrollTop > 0) {
+          builder.scrollTop -= Math.ceil(bRect.top + 4 - lRect.top);
+        }
+        if (lRect.bottom > bRect.bottom - 4) {
+          builder.scrollTop += Math.ceil(lRect.bottom - (bRect.bottom - 4) + 8);
+        }
       }
     };
 
