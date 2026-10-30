@@ -323,7 +323,7 @@ $flash = getFlash();
         }
 
         const belowFixed = (lastBottom - builderEl.getBoundingClientRect().bottom) + panelPadBottom;
-        const maxHeight = Math.max(80, window.innerHeight - builderTop - belowFixed - layoutPadBottom);
+        const maxHeight = Math.max(90, window.innerHeight - builderTop - belowFixed - layoutPadBottom);
         builderEl.style.maxHeight = `${maxHeight}px`;
     }
 

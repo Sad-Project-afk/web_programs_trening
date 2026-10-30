@@ -23,6 +23,16 @@
     closeOpen();
   });
 
+  // Пока список открыт, следим за прокруткой и поворотом экрана,
+  // чтобы держать его пристыкованным к полю.
+  const repositionOpen = () => {
+    if (openSearch && openSearch.position) {
+      openSearch.position();
+    }
+  };
+  window.addEventListener('scroll', repositionOpen, true);
+  window.addEventListener('resize', repositionOpen);
+
   function setupExerciseSearch(wrapper, options, config) {
     const input = wrapper.querySelector('input.ex-search-input');
     const list = wrapper.querySelector('.ex-search-list');
@@ -85,12 +95,29 @@
         // предзаполненной строкой — выпадашка ведёт себя одинаково на всех страницах.
         render('');
         showList();
+        position();
+      }
+    };
 
-        // Внутри прокручиваемого блока список раскрываем вверх, если снизу мало места.
-        const rect = input.getBoundingClientRect();
-        const listHeight = Math.min(220, list.scrollHeight || 220);
-        const spaceBelow = window.innerHeight - rect.bottom;
-        wrapper.classList.toggle('ex-search-open-up', spaceBelow < listHeight + 8);
+    // Список позиционируем относительно окна (position: fixed), чтобы
+    // прокручиваемый блок упражнений не обрезал его.
+    const position = () => {
+      const rect = input.getBoundingClientRect();
+      const listHeight = Math.min(220, list.scrollHeight || 220);
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const up = spaceBelow < listHeight + 8;
+      wrapper.classList.toggle('ex-search-open-up', up);
+      list.style.position = 'fixed';
+      list.style.margin = '0';
+      list.style.left = `${rect.left}px`;
+      list.style.width = `${rect.width}px`;
+      list.style.zIndex = '400';
+      if (up) {
+        list.style.top = 'auto';
+        list.style.bottom = `${window.innerHeight - rect.top + 4}px`;
+      } else {
+        list.style.top = `${rect.bottom + 4}px`;
+        list.style.bottom = 'auto';
       }
     };
 
@@ -102,7 +129,7 @@
       }
     };
 
-    const api = { open, close };
+    const api = { open, close, position };
 
     input.addEventListener('focus', open);
     input.addEventListener('input', () => {
@@ -110,6 +137,7 @@
       if (list.hidden) {
         showList();
       }
+      position();
     });
     input.addEventListener('blur', () => {
       setTimeout(close, 120);
