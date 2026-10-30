@@ -168,18 +168,16 @@ $flash = getFlash();
     <?php renderFlash($flash); ?>
 
     <main class="page-single">
-        <form method="get" action="progress.php" class="panel control-panel">
+        <form method="get" action="progress.php" class="panel control-panel" id="progressForm">
             <input type="hidden" name="period" value="<?php echo $period; ?>" />
 
             <div class="field">
                 <label for="exercise">Упражнение</label>
-                <select id="exercise" name="exercise" onchange="this.form.submit()">
-                    <?php foreach (array_keys($performed) as $name): ?>
-                        <option value="<?php echo htmlspecialchars($name); ?>" <?php echo $name === $requested ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($name); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+                <div class="ex-search">
+                    <svg class="ex-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                    <input id="exercise" name="exercise" type="text" class="ex-search-input" role="combobox" aria-expanded="false" aria-controls="ex-search-list" autocomplete="off" placeholder="Поиск упражнения…" value="<?php echo htmlspecialchars($requested); ?>" />
+                    <ul id="ex-search-list" class="ex-search-list" role="listbox" hidden></ul>
+                </div>
             </div>
 
             <div class="segmented" role="group" aria-label="Период">
@@ -244,5 +242,15 @@ $flash = getFlash();
         <?php endif; ?>
     </main>
 </div>
+
+<script src="exercise-search.js"></script>
+<script>
+    const progressOptions = <?php echo json_encode(array_keys($performed), JSON_UNESCAPED_UNICODE); ?>;
+    const progressForm = document.getElementById('progressForm');
+
+    setupExerciseSearch(document.querySelector('.control-panel .ex-search'), progressOptions, {
+        onSelect: () => progressForm.submit(),
+    });
+</script>
 </body>
 </html>

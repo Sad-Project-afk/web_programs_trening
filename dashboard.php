@@ -68,13 +68,15 @@ $flash = getFlash();
                     ?>
                         <article class="exercise-block" data-index="<?php echo $exerciseIndex; ?>">
                             <div class="exercise-top">
-                                <label class="visually-hidden" for="exercise-name-<?php echo $exerciseIndex; ?>">Упражнение</label>
-                                <select id="exercise-name-<?php echo $exerciseIndex; ?>" name="exercise_name[<?php echo $exerciseIndex; ?>]" class="exercise-name-select">
-                                    <option value="">Выберите упражнение</option>
-                                    <?php foreach ($exerciseCatalog as $item): ?>
-                                        <option value="<?php echo htmlspecialchars((string) $item); ?>" <?php echo $item === $exerciseName ? 'selected' : ''; ?>><?php echo htmlspecialchars((string) $item); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <button type="button" class="ex-collapse" aria-expanded="true" aria-label="Свернуть упражнение">
+                                    <svg class="ex-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                                </button>
+                                <div class="ex-search">
+                                    <label class="visually-hidden" for="exercise-name-<?php echo $exerciseIndex; ?>">Упражнение</label>
+                                    <svg class="ex-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                                    <input id="exercise-name-<?php echo $exerciseIndex; ?>" name="exercise_name[<?php echo $exerciseIndex; ?>]" type="text" class="ex-search-input" role="combobox" aria-expanded="false" aria-controls="ex-list-<?php echo $exerciseIndex; ?>" autocomplete="off" placeholder="Поиск упражнения…" value="<?php echo htmlspecialchars((string) $exerciseName); ?>" />
+                                    <ul id="ex-list-<?php echo $exerciseIndex; ?>" class="ex-search-list" role="listbox" hidden></ul>
+                                </div>
                                 <span class="exercise-count"><?php echo count($exerciseSets); ?> <?php echo pluralRu(count($exerciseSets), 'подход', 'подхода', 'подходов'); ?></span>
                             </div>
 
@@ -122,6 +124,7 @@ $flash = getFlash();
     </main>
 </div>
 
+<script src="exercise-search.js"></script>
 <script>
     const exerciseCatalog = <?php echo json_encode($exerciseCatalog, JSON_UNESCAPED_UNICODE); ?>;
     const builder = document.getElementById('exerciseBuilder');
@@ -136,25 +139,36 @@ $flash = getFlash();
         return many;
     }
 
-    function createExerciseOptionMarkup() {
-        return ['<option value="">Выберите упражнение</option>']
-            .concat(exerciseCatalog.map((exercise) => `<option value="${exercise}">${exercise}</option>`))
-            .join('');
-    }
-
     function updateSetCount(block) {
         const count = block.querySelectorAll('.set-row').length;
         block.querySelector('.exercise-count').textContent = `${count} ${pluralRu(count, 'подход', 'подхода', 'подходов')}`;
+    }
+
+    function setCollapsed(block, collapsed) {
+        block.classList.toggle('is-collapsed', collapsed);
+        const button = block.querySelector('.ex-collapse');
+        if (button) {
+            button.setAttribute('aria-expanded', String(!collapsed));
+            button.setAttribute('aria-label', collapsed ? 'Развернуть упражнение' : 'Свернуть упражнение');
+        }
+    }
+
+    function expandOnly(block) {
+        builder.querySelectorAll('.exercise-block').forEach((other) => {
+            setCollapsed(other, other !== block);
+        });
     }
 
     function renumber() {
         builder.querySelectorAll('.exercise-block').forEach((block, exerciseIndex) => {
             block.dataset.index = String(exerciseIndex);
 
-            const select = block.querySelector('.exercise-name-select');
-            select.name = `exercise_name[${exerciseIndex}]`;
-            select.id = `exercise-name-${exerciseIndex}`;
-            block.querySelector('.exercise-top label').htmlFor = select.id;
+            const input = block.querySelector('.ex-search-input');
+            input.name = `exercise_name[${exerciseIndex}]`;
+            input.id = `exercise-name-${exerciseIndex}`;
+            input.setAttribute('aria-controls', `ex-list-${exerciseIndex}`);
+            block.querySelector('.ex-search-list').id = `ex-list-${exerciseIndex}`;
+            block.querySelector('.ex-search > label').htmlFor = input.id;
 
             block.querySelectorAll('.set-row').forEach((row, setIndex) => {
                 row.dataset.setIndex = String(setIndex);
@@ -192,6 +206,7 @@ $flash = getFlash();
     }
 
     function addSetRow(block) {
+        expandOnly(block);
         block.querySelector('.set-list').appendChild(createSetRow());
         renumber();
         block.querySelector('.set-row:last-child input')?.focus();
@@ -214,10 +229,15 @@ $flash = getFlash();
         block.className = 'exercise-block';
         block.innerHTML = `
             <div class="exercise-top">
-                <label class="visually-hidden">Упражнение</label>
-                <select class="exercise-name-select">
-                    ${createExerciseOptionMarkup()}
-                </select>
+                <button type="button" class="ex-collapse" aria-expanded="true" aria-label="Свернуть упражнение">
+                    <svg class="ex-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <div class="ex-search">
+                    <label class="visually-hidden">Упражнение</label>
+                    <svg class="ex-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                    <input type="text" class="ex-search-input" role="combobox" aria-expanded="false" aria-controls="" autocomplete="off" placeholder="Поиск упражнения…" />
+                    <ul class="ex-search-list" role="listbox" hidden></ul>
+                </div>
                 <span class="exercise-count">1 подход</span>
             </div>
             <div class="set-list"></div>
@@ -230,6 +250,14 @@ $flash = getFlash();
         block.querySelector('.set-list').appendChild(createSetRow());
         block.querySelector('.add-set-btn').addEventListener('click', () => addSetRow(block));
         block.querySelector('.remove-exercise-btn').addEventListener('click', () => removeExerciseBlock(block));
+        block.querySelector('.ex-collapse').addEventListener('click', () => {
+            if (block.classList.contains('is-collapsed')) {
+                expandOnly(block);
+            } else {
+                setCollapsed(block, true);
+            }
+        });
+        setupExerciseSearch(block.querySelector('.ex-search'), exerciseCatalog);
 
         return block;
     }
@@ -237,15 +265,16 @@ $flash = getFlash();
     function addExerciseBlock() {
         const block = createExerciseBlock();
         builder.appendChild(block);
+        expandOnly(block);
         renumber();
-        block.querySelector('.exercise-name-select').focus();
+        block.querySelector('.ex-search-input').focus();
     }
 
     function removeExerciseBlock(block) {
         if (builder.querySelectorAll('.exercise-block').length > 1) {
             block.remove();
         } else {
-            block.querySelector('.exercise-name-select').value = '';
+            block.querySelector('.ex-search-input').value = '';
             block.querySelectorAll('.set-row').forEach((row) => {
                 row.querySelectorAll('input').forEach((input) => { input.value = ''; });
             });
@@ -254,12 +283,21 @@ $flash = getFlash();
         renumber();
     }
 
-    builder.querySelectorAll('.exercise-block').forEach((block) => {
+    builder.querySelectorAll('.exercise-block').forEach((block, index) => {
         block.querySelector('.add-set-btn').addEventListener('click', () => addSetRow(block));
         block.querySelector('.remove-exercise-btn').addEventListener('click', () => removeExerciseBlock(block));
+        block.querySelector('.ex-collapse').addEventListener('click', () => {
+            if (block.classList.contains('is-collapsed')) {
+                expandOnly(block);
+            } else {
+                setCollapsed(block, true);
+            }
+        });
         block.querySelectorAll('.remove-set-btn').forEach((button) => {
             button.addEventListener('click', () => removeSetRow(button.closest('.set-row')));
         });
+        setupExerciseSearch(block.querySelector('.ex-search'), exerciseCatalog);
+        setCollapsed(block, index > 0);
     });
 
     document.getElementById('addExerciseBtn').addEventListener('click', addExerciseBlock);

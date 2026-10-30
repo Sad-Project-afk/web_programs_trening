@@ -639,7 +639,7 @@ body.dashboard-page {
   margin-bottom: 12px;
 }
 
-.control-panel .field select {
+.control-panel .field .ex-search-input {
   width: 100%;
   padding: 9px 10px;
   border: 1px solid var(--line);
@@ -773,7 +773,7 @@ body.dashboard-page {
 
 .field input:focus,
 .field textarea:focus,
-.exercise-name-select:focus,
+.ex-search-input:focus,
 .set-field input:focus,
 .notes-details textarea:focus {
   outline: none;
@@ -805,14 +805,64 @@ body.dashboard-page {
 
 .exercise-top {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 7px;
   align-items: center;
 }
 
-.exercise-name-select {
+.ex-collapse {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #9aa3b2;
+  cursor: pointer;
+}
+
+.ex-collapse:hover {
+  background: #f1f4f9;
+  color: var(--text);
+}
+
+.ex-chevron {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.18s ease;
+}
+
+.exercise-block.is-collapsed .ex-chevron {
+  transform: rotate(-90deg);
+}
+
+.exercise-block.is-collapsed .set-list,
+.exercise-block.is-collapsed .exercise-actions {
+  display: none;
+}
+
+.ex-search {
+  position: relative;
+  min-width: 0;
+}
+
+.ex-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  color: #a2aab8;
+  pointer-events: none;
+}
+
+.ex-search-input {
   width: 100%;
-  padding: 8px 10px;
+  min-width: 0;
+  padding: 8px 10px 8px 30px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #f8f9fc;
@@ -820,6 +870,46 @@ body.dashboard-page {
   font: inherit;
   font-size: 1rem;
   font-weight: 600;
+}
+
+.ex-search-list {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
+  text-align: left;
+}
+
+.ex-search-option {
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.ex-search-option:hover,
+.ex-search-option:focus {
+  background: #f1f4f9;
+  outline: none;
+}
+
+.ex-search-empty {
+  padding: 10px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: center;
 }
 
 .exercise-count {
@@ -1267,7 +1357,7 @@ body.dashboard-page {
 
   .field input,
   .field textarea,
-  .exercise-name-select,
+  .ex-search-input,
   .set-field input,
   .notes-details textarea {
     font-size: 0.92rem;
