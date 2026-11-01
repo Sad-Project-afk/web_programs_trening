@@ -1,5 +1,12 @@
 <?php
 
+require __DIR__ . '/db.php';
+
+/** Регистрационный порог: не больше этого числа попыток за окно с одного IP. */
+const REGISTRATION_MAX_ATTEMPTS = 3;
+/** Длина окна антиспама в секундах. */
+const REGISTRATION_WINDOW = 120;
+
 // «Запомнить меня»: если стоит маркер, сессия живёт 30 дней,
 // а не до закрытия браузера.
 $rememberSession = isset($_COOKIE['fitlog_remember']) && $_COOKIE['fitlog_remember'] === '1';
@@ -23,33 +30,57 @@ const WORKOUTS_FILE = __DIR__ . '/data/workouts.json';
 const EXERCISES_FILE = __DIR__ . '/data/exercises.json';
 const REGISTRATION_LOG_FILE = __DIR__ . '/data/registration_log.json';
 
-/** Регистрационный порог: не больше этого числа попыток за окно с одного IP. */
-const REGISTRATION_MAX_ATTEMPTS = 3;
-/** Длина окна антиспама в секундах. */
-const REGISTRATION_WINDOW = 120;
-
+/**
+ * Гарантирует наличие папки data/, справочника упражнений и таблиц БД.
+ */
 function ensureStorage(): void
 {
     if (!is_dir(__DIR__ . '/data')) {
         mkdir(__DIR__ . '/data', 0777, true);
     }
 
-    foreach ([USERS_FILE, WORKOUTS_FILE, EXERCISES_FILE] as $path) {
-        if (!file_exists($path)) {
-            file_put_contents($path, "[]");
-        }
+    if (!file_exists(EXERCISES_FILE)) {
+        file_put_contents(EXERCISES_FILE, '[]');
     }
 }
 
+/**
+ * Чтение данных. Совместимо со старым API: массив в том же формате.
+ * Справочник упражнений остаётся файловым, остальное — в БД.
+ */
 function readJson(string $path): array
 {
+    if ($path === EXERCISES_FILE) {
+        return readCatalogFile();
+    }
+
     ensureStorage();
 
-    if (!file_exists($path)) {
+    if ($path === USERS_FILE) {
+        return dbUsers();
+    }
+
+    if ($path === WORKOUTS_FILE) {
+        return dbWorkouts();
+    }
+
+    if ($path === REGISTRATION_LOG_FILE) {
+        return dbRegistrationLog();
+    }
+
+    return [];
+}
+
+/**
+ * Чтение файлового справочника упражнений.
+ */
+function readCatalogFile(): array
+{
+    if (!file_exists(EXERCISES_FILE)) {
         return [];
     }
 
-    $content = @file_get_contents($path);
+    $content = @file_get_contents(EXERCISES_FILE);
     if ($content === false || trim($content) === '') {
         return [];
     }
@@ -58,10 +89,27 @@ function readJson(string $path): array
     return is_array($data) ? $data : [];
 }
 
+/**
+ * Запись данных. Совместимо со старым API: принимает тот же массив целиком.
+ */
 function writeJson(string $path, array $data): void
 {
-    $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    file_put_contents($path, $json);
+    ensureStorage();
+
+    if ($path === USERS_FILE) {
+        dbSaveUsers($data);
+        return;
+    }
+
+    if ($path === WORKOUTS_FILE) {
+        dbSaveWorkouts($data);
+        return;
+    }
+
+    if ($path === REGISTRATION_LOG_FILE) {
+        dbSaveRegistrationLog($data);
+        return;
+    }
 }
 
 function currentUser(): ?array
