@@ -14,7 +14,7 @@ return [
     'driver' => 'mysql',          // 'mysql' — БД на хостинге
 
     'host'     => 'localhost',    // хост MySQL (обычно localhost или IP из панели)
-    'port'     => 3306,
+    'port'     => 3306,           // можно не указывать — тогда используется порт по умолчанию 3306
     'database' => 'fitlog',       // имя базы, созданной в панели хостинга
     'username' => 'fitlog_user',  // пользователь MySQL
     'password' => 'secret',       // пароль MySQL
