@@ -8,6 +8,27 @@ if (currentUser()) {
 
 $flash = getFlash();
 
+/**
+ * Ставит/убирает маркер «Запомнить меня» и продлевает сессионную cookie.
+ */
+function applyRememberMe(): void
+{
+    $remember = !empty($_POST['remember']);
+
+    if ($remember) {
+        $params = [
+            'expires' => time() + 30 * 24 * 3600,
+            'path' => '/',
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ];
+        setcookie('fitlog_remember', '1', $params);
+        setcookie(session_name(), session_id(), $params);
+    } else {
+        setcookie('fitlog_remember', '', ['expires' => time() - 3600, 'path' => '/']);
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'login';
     $email = strtolower(trim((string) ($_POST['email'] ?? '')));
@@ -75,6 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         writeJson(USERS_FILE, $users);
         $_SESSION['user'] = ['id' => $userId, 'name' => $name, 'email' => $email];
+        applyRememberMe();
         header('Location: dashboard.php');
         exit;
     }
@@ -89,6 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($users as $user) {
         if (strtolower((string) ($user['email'] ?? '')) === $email && password_verify($password, (string) ($user['password'] ?? ''))) {
             $_SESSION['user'] = ['id' => $user['id'], 'name' => $user['name'], 'email' => $user['email']];
+            applyRememberMe();
             header('Location: dashboard.php');
             exit;
         }
@@ -175,7 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     <div class="form-row">
                         <label class="checkbox-wrap">
-                            <input type="checkbox" id="remember" />
+                            <input type="checkbox" id="remember" name="remember" value="1" />
                             <span>Запомнить меня</span>
                         </label>
                         <a href="#" class="link">Забыли пароль?</a>

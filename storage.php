@@ -1,4 +1,21 @@
 <?php
+
+// «Запомнить меня»: если стоит маркер, сессия живёт 30 дней,
+// а не до закрытия браузера.
+$rememberSession = isset($_COOKIE['fitlog_remember']) && $_COOKIE['fitlog_remember'] === '1';
+
+if ($rememberSession) {
+    ini_set('session.gc_maxlifetime', 30 * 24 * 3600);
+    session_set_cookie_params([
+        'lifetime' => 30 * 24 * 3600,
+        'path' => '/',
+        'domain' => '',
+        'secure' => false,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+}
+
 session_start();
 
 const USERS_FILE = __DIR__ . '/data/users.json';

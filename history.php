@@ -48,6 +48,17 @@ $highlight = (string) ($_GET['highlight'] ?? '');
                     <strong><?php echo formatNumber((float) $stats['avgWeight']); ?> <span class="stat-unit">кг</span></strong>
                 </div>
             </div>
+
+            <form method="get" action="export.php" class="export-bar">
+                <span class="export-label">Экспорт отчёта</span>
+                <select id="exportPeriod" name="period">
+                    <option value="7">За неделю</option>
+                    <option value="30">За месяц</option>
+                    <option value="90">За 3 месяца</option>
+                    <option value="0" selected>За всё время</option>
+                </select>
+                <button type="submit" class="secondary-btn export-btn">Скачать CSV</button>
+            </form>
         </section>
 
         <section class="panel">

@@ -640,6 +640,38 @@ body.dashboard-page {
   color: var(--muted);
 }
 
+/* --- Экспорт отчёта --- */
+
+.export-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.export-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.export-bar select {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 180px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8f9fc;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 /* --- Прогресс --- */
 
 .control-panel {
