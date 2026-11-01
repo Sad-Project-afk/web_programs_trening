@@ -364,3 +364,31 @@ function dbSaveRegistrationLog(array $entries): void
         throw $e;
     }
 }
+
+/**
+ * Обновляет пароль пользователя (hash уже посчитан).
+ */
+function dbUpdateUserPassword(string $userId, string $passwordHash): void
+{
+    $stmt = dbPdo()->prepare('UPDATE users SET password = ? WHERE id = ?');
+    $stmt->execute([$passwordHash, $userId]);
+}
+
+/**
+ * Удаляет пользователя вместе с его тренировками
+ * (упражнения и подходы удаляются каскадом по внешним ключам).
+ */
+function dbDeleteUser(string $userId): void
+{
+    $pdo = dbPdo();
+    $pdo->beginTransaction();
+
+    try {
+        $pdo->prepare('DELETE FROM workouts WHERE user_id = ?')->execute([$userId]);
+        $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$userId]);
+        $pdo->commit();
+    } catch (\Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}

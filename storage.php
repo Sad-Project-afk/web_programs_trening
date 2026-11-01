@@ -142,6 +142,122 @@ function getFlash(): ?array
 }
 
 /**
+ * Администраторы: список email из конфига admin_emails.
+ * Если список пуст — админ — первый зарегистрированный пользователь.
+ */
+function isAdmin(): bool
+{
+    $user = currentUser();
+    if (!$user) {
+        return false;
+    }
+
+    $email = strtolower(trim((string) ($user['email'] ?? '')));
+    $configured = fitlogConfig()['admin_emails'] ?? [];
+
+    if (is_array($configured) && $configured !== []) {
+        foreach ($configured as $adminEmail) {
+            if (strtolower(trim((string) $adminEmail)) === $email) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    $users = readJson(USERS_FILE);
+    $firstEmail = isset($users[0]['email']) ? strtolower(trim((string) $users[0]['email'])) : '';
+    return $firstEmail !== '' && $firstEmail === $email;
+}
+
+/**
+ * Простая CSRF-защита для админских форм.
+ */
+function csrfToken(): string
+{
+    if (empty($_SESSION['csrf'])) {
+        $_SESSION['csrf'] = bin2hex(random_bytes(16));
+    }
+
+    return $_SESSION['csrf'];
+}
+
+function csrfVerify(): bool
+{
+    $token = (string) ($_POST['csrf'] ?? '');
+    return $token !== '' && isset($_SESSION['csrf']) && hash_equals($_SESSION['csrf'], $token);
+}
+
+/**
+ * Требования к паролю (одинаковы при регистрации и в админке).
+ */
+function passwordMeetsPolicy(string $password): bool
+{
+    $length = function_exists('mb_strlen') ? mb_strlen($password) : strlen($password);
+
+    return $length >= 6
+        && preg_match('/[A-ZА-ЯЁ]/u', $password)
+        && preg_match('/[0-9]/', $password);
+}
+
+/**
+ * Нижний регистр: mb_strtolower если есть, иначе strtolower (ASCII).
+ */
+function mbLower(string $value): string
+{
+    return function_exists('mb_strtolower') ? mb_strtolower($value) : strtolower($value);
+}
+
+/**
+ * Работа с файловым каталогом упражнений.
+ */
+function catalogAdd(string $name): bool
+{
+    $name = trim($name);
+    if ($name === '') {
+        return false;
+    }
+
+    $catalog = readJson(EXERCISES_FILE);
+
+    foreach ($catalog as $item) {
+        if (mbLower((string) $item) === mbLower($name)) {
+            return false;
+        }
+    }
+
+    $catalog[] = $name;
+    writeCatalogFile($catalog);
+    return true;
+}
+
+function catalogRemove(string $name): bool
+{
+    $catalog = readJson(EXERCISES_FILE);
+    $updated = [];
+
+    foreach ($catalog as $item) {
+        if ((string) $item === $name) {
+            continue;
+        }
+        $updated[] = $item;
+    }
+
+    if (count($updated) === count($catalog)) {
+        return false;
+    }
+
+    writeCatalogFile($updated);
+    return true;
+}
+
+function writeCatalogFile(array $catalog): void
+{
+    $json = json_encode($catalog, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    file_put_contents(EXERCISES_FILE, $json);
+}
+
+/**
  * Антиспам: регистрация с одного IP разрешена, только пока число попыток
  * за последние REGISTRATION_WINDOW секунд не превысило порог.
  */

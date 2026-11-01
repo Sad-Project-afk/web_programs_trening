@@ -19,6 +19,9 @@ function renderTopbar(array $user): void
                 <div><strong><?php echo htmlspecialchars((string) $user['name']); ?></strong></div>
                 <small><?php echo htmlspecialchars((string) $user['email']); ?></small>
             </div>
+            <?php if (isAdmin()): ?>
+                <a href="admin.php" class="admin-link" title="Управление пользователями и каталогом">Админ</a>
+            <?php endif; ?>
             <a href="logout.php" class="logout-link" title="Выйти из аккаунта">Выйти</a>
         </div>
     </header>
