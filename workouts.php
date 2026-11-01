@@ -88,7 +88,11 @@ function workoutSummary(array $workout): array
 
             $setCount++;
             $volume += $weight * $reps;
-            $maxWeight = max($maxWeight, $weight);
+
+            // «Свой вес» (0 кг) не влияет на максимальный вес.
+            if ($weight > 0) {
+                $maxWeight = max($maxWeight, $weight);
+            }
         }
     }
 
@@ -112,7 +116,12 @@ function workoutStats(array $workouts): array
         foreach (($workout['exercises'] ?? []) as $exercise) {
             foreach (($exercise['sets'] ?? []) as $set) {
                 $setCount++;
-                $weights[] = (float) ($set['weight'] ?? 0);
+                $weight = (float) ($set['weight'] ?? 0);
+
+                // Подходы «со своим весом» (0 кг) не участвуют в среднем весе.
+                if ($weight > 0) {
+                    $weights[] = $weight;
+                }
             }
         }
     }

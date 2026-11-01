@@ -52,6 +52,7 @@ foreach (array_reverse($myWorkouts) as $workout) {
     }
 
     $maxWeight = 0.0;
+    $maxReps = 0;
 
     foreach (($workout['exercises'] ?? []) as $exercise) {
         if (trim((string) ($exercise['name'] ?? '')) !== $requested) {
@@ -60,18 +61,32 @@ foreach (array_reverse($myWorkouts) as $workout) {
 
         foreach (($exercise['sets'] ?? []) as $set) {
             $maxWeight = max($maxWeight, (float) ($set['weight'] ?? 0));
+            $maxReps = max($maxReps, (int) ($set['reps'] ?? 0));
         }
     }
 
-    if ($maxWeight > 0.0) {
+    if ($maxWeight > 0.0 || $maxReps > 0) {
         $series[] = [
             'label' => $workoutDate !== '' ? date('d.m', strtotime($workoutDate)) : '',
             'max' => $maxWeight,
+            'reps' => $maxReps,
         ];
     }
 }
 
-function renderWeightChart(array $series): string
+// Упражнение «со своим весом» (все подходы 0 кг): прогресс показываем по повторам.
+$bestWeight = $series ? max(array_column($series, 'max')) : 0.0;
+$isBodyweight = count($series) > 0 && $bestWeight === 0.0;
+
+if ($isBodyweight) {
+    foreach ($series as &$point) {
+        $point['max'] = (float) $point['reps'];
+    }
+    unset($point);
+    $bestWeight = $series ? max(array_column($series, 'max')) : 0.0;
+}
+
+function renderWeightChart(array $series, string $unit = 'кг'): string
 {
     $count = count($series);
     $width = 320;
@@ -127,11 +142,12 @@ function renderWeightChart(array $series): string
         $y = $normY($item['max']);
         $points[] = round($x, 1) . ',' . round($y, 1);
         $dotMarkup .= sprintf(
-            '<circle class="chart-dot" cx="%s" cy="%s" r="3.4"><title>%s — %s кг</title></circle>',
+            '<circle class="chart-dot" cx="%s" cy="%s" r="3.4"><title>%s — %s %s</title></circle>',
             round($x, 1),
             round($y, 1),
             htmlspecialchars($item['label']),
-            formatNumber($item['max'])
+            formatNumber($item['max']),
+            $unit
         ) . "\n";
         if ($showValues) {
             $dotMarkup .= sprintf('<text class="chart-val" x="%s" y="%s">%s</text>', round($x, 1), round($y - 7, 1), formatNumber($item['max'])) . "\n";
@@ -150,6 +166,11 @@ function renderWeightChart(array $series): string
 $bestWeight = $series ? max(array_column($series, 'max')) : 0.0;
 $lastWeight = $series ? $series[count($series) - 1]['max'] : 0.0;
 $change = $series ? $lastWeight - $series[0]['max'] : 0.0;
+
+$metricTitle = $isBodyweight ? 'повторы (свой вес)' : 'макс. вес';
+$bestLabel = $isBodyweight ? 'Лучшие повторы' : 'Лучший вес';
+$lastLabel = $isBodyweight ? 'Последние' : 'Последний';
+$metricUnit = $isBodyweight ? 'раз' : 'кг';
 $flash = getFlash();
 ?>
 <!DOCTYPE html>
@@ -202,7 +223,7 @@ $flash = getFlash();
             <section class="panel chart-panel">
                 <div class="section-header">
                     <h2><?php echo htmlspecialchars($requested); ?></h2>
-                    <span class="history-count">макс. вес</span>
+                    <span class="history-count"><?php echo $metricTitle; ?></span>
                 </div>
 
                 <?php if ($series === []): ?>
@@ -212,17 +233,17 @@ $flash = getFlash();
                 <?php else: ?>
                     <div class="stats-grid progress-stats">
                         <div class="stat-card">
-                            <small>Лучший вес</small>
-                            <strong><?php echo formatNumber($bestWeight); ?> <span class="stat-unit">кг</span></strong>
+                            <small><?php echo $bestLabel; ?></small>
+                            <strong><?php echo formatNumber($bestWeight); ?> <span class="stat-unit"><?php echo $metricUnit; ?></span></strong>
                         </div>
                         <div class="stat-card">
-                            <small>Последний</small>
-                            <strong><?php echo formatNumber($lastWeight); ?> <span class="stat-unit">кг</span></strong>
+                            <small><?php echo $lastLabel; ?></small>
+                            <strong><?php echo formatNumber($lastWeight); ?> <span class="stat-unit"><?php echo $metricUnit; ?></span></strong>
                         </div>
                         <div class="stat-card">
                             <small>Изменение</small>
                             <strong class="<?php echo $change < 0 ? 'is-negative' : ''; ?>">
-                                <?php echo $change > 0 ? '+' : ''; ?><?php echo formatNumber($change); ?> <span class="stat-unit">кг</span>
+                                <?php echo $change > 0 ? '+' : ''; ?><?php echo formatNumber($change); ?> <span class="stat-unit"><?php echo $metricUnit; ?></span>
                             </strong>
                         </div>
                         <div class="stat-card">
@@ -233,8 +254,8 @@ $flash = getFlash();
 
                     <figure class="chart-box">
                         <svg class="chart-svg" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid meet" role="img"
-                             aria-label="График максимального веса упражнения «<?php echo htmlspecialchars($requested); ?>»">
-                            <?php echo renderWeightChart($series); ?>
+                             aria-label="График <?php echo $isBodyweight ? 'повторов' : 'максимального веса'; ?> упражнения «<?php echo htmlspecialchars($requested); ?>»">
+                            <?php echo renderWeightChart($series, $metricUnit); ?>
                         </svg>
                     </figure>
                 <?php endif; ?>
